@@ -13,12 +13,15 @@ import {
 
 import {
   statusTrendData,
-  trendRangeLabels,
   type TrendRange,
 } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
 
-const rangeOrder: TrendRange[] = ["harian", "mingguan", "bulanan"];
+const rangeOptions: { key: TrendRange; label: string }[] = [
+  { key: "harian", label: "7 Hari Terakhir" },
+  { key: "mingguan", label: "4 Minggu Terakhir" },
+  { key: "bulanan", label: "30 Hari Terakhir" },
+];
 
 const seriesMeta = [
   { key: "online" as const, label: "Online", color: "#0E9F6E" },
@@ -26,81 +29,89 @@ const seriesMeta = [
   { key: "offline" as const, label: "Offline", color: "#DC2626" },
 ];
 
-export function StatusTrendChart() {
+interface StatusTrendChartProps {
+  title?: string;
+}
+
+export function StatusTrendChart({ title = "Grafik Status Aplikasi" }: StatusTrendChartProps) {
   const [range, setRange] = useState<TrendRange>("harian");
   const data = statusTrendData[range];
+  const rangeLabel = rangeOptions.find((r) => r.key === range)?.label || "";
 
   return (
-    <div className="rounded-xl border border-border bg-white p-4 shadow-sm sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex h-full flex-col rounded-xl border border-border bg-white shadow-2xs">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4 pb-3">
         <div>
-          <p className="text-sm font-semibold text-ink">Grafik Status Aplikasi</p>
-          <p className="text-xs text-ink/45">
-            Tren jumlah aplikasi per status — {trendRangeLabels[range].toLowerCase()}
-          </p>
+          <h2 className="text-sm font-semibold text-ink">{title}</h2>
+          <p className="text-[11px] text-ink/45">({rangeLabel})</p>
         </div>
 
-        <div
-          role="tablist"
-          aria-label="Rentang waktu grafik"
-          className="flex rounded-lg border border-border bg-canvas p-0.5"
-        >
-          {rangeOrder.map((key) => (
+        {/* Legend inline */}
+        <div className="flex items-center gap-4">
+          {seriesMeta.map((s) => (
+            <span key={s.key} className="flex items-center gap-1.5 text-xs text-ink/60">
+              <span
+                className="inline-block h-0.5 w-5 rounded-full"
+                style={{ backgroundColor: s.color }}
+              />
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: s.color }}
+              />
+              {s.label}
+            </span>
+          ))}
+        </div>
+
+        {/* Range selector — inline buttons matching reference */}
+        <div className="flex items-center gap-0 rounded-lg border border-border overflow-hidden">
+          {rangeOptions.map((opt, idx) => (
             <button
-              key={key}
+              key={opt.key}
               type="button"
-              role="tab"
-              aria-selected={range === key}
-              onClick={() => setRange(key)}
+              onClick={() => setRange(opt.key)}
               className={cn(
-                "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                range === key
-                  ? "bg-white text-brand shadow-sm"
-                  : "text-ink/50 hover:text-ink"
+                "px-3 py-1.5 text-[11px] font-medium transition-colors",
+                idx > 0 && "border-l border-border",
+                range === opt.key
+                  ? "bg-brand text-white"
+                  : "bg-white text-ink/60 hover:bg-canvas hover:text-ink"
               )}
             >
-              {trendRangeLabels[key]}
+              {opt.label}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="mt-4 flex items-center gap-4 text-xs text-ink/60">
-        {seriesMeta.map((series) => (
-          <span key={series.key} className="flex items-center gap-1.5">
-            <span
-              className="h-2 w-2 rounded-full"
-              style={{ backgroundColor: series.color }}
-              aria-hidden="true"
-            />
-            {series.label}
-          </span>
-        ))}
-      </div>
-
-      <div className="mt-3 h-64 w-full">
+      {/* Chart */}
+      <div className="flex-1 px-2 pb-4" style={{ minHeight: 240 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E3E6EC" vertical={false} />
+          <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: -10 }}>
+            <CartesianGrid strokeDasharray="3 4" stroke="#E3E6EC" vertical={false} />
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 11, fill: "#8792A8" }}
+              tick={{ fontSize: 10, fill: "#8792A8" }}
               tickLine={false}
               axisLine={{ stroke: "#E3E6EC" }}
             />
             <YAxis
-              tick={{ fontSize: 11, fill: "#8792A8" }}
+              tick={{ fontSize: 10, fill: "#8792A8" }}
               tickLine={false}
               axisLine={false}
-              width={36}
+              width={32}
+              domain={["dataMin - 5", "dataMax + 5"]}
             />
             <Tooltip
               contentStyle={{
-                borderRadius: 10,
+                borderRadius: 8,
                 borderColor: "#E3E6EC",
                 fontSize: 12,
+                boxShadow: "0 8px 16px -4px rgba(0,0,0,0.12)",
+                padding: "8px 12px",
               }}
-              labelStyle={{ color: "#12161F", fontWeight: 600 }}
+              labelStyle={{ color: "#12161F", fontWeight: 600, marginBottom: 4 }}
             />
             {seriesMeta.map((series) => (
               <Line
@@ -111,8 +122,8 @@ export function StatusTrendChart() {
                 stroke={series.color}
                 strokeWidth={2}
                 dot={{ r: 3, strokeWidth: 0, fill: series.color }}
-                activeDot={{ r: 5 }}
-                isAnimationActive={false}
+                activeDot={{ r: 4, strokeWidth: 2, stroke: "white" }}
+                isAnimationActive={true}
               />
             ))}
           </LineChart>
