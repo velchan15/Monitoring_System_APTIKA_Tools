@@ -1,12 +1,18 @@
-const Redis = require("ioredis");
+const { RedisMemoryServer } = require('redis-memory-server');
+const { Redis } = require('ioredis');
 
-function createRedisConnection(url = process.env.REDIS_URL || "redis://127.0.0.1:6379") {
-  return new Redis(url, {
-    lazyConnect: true,
-    maxRetriesPerRequest: null,
-  });
+let redisConnection;
+
+async function getRedisConnection() {
+  if (!redisConnection) {
+    const redisServer = new RedisMemoryServer();
+    const host = await redisServer.getHost();
+    const port = await redisServer.getPort();
+
+    redisConnection = new Redis({ host, port, maxRetriesPerRequest: null });
+    console.log(`[Redis] Menggunakan Memory Server lokal di port ${port}`);
+  }
+  return redisConnection;
 }
 
-const redisConnection = createRedisConnection();
-
-module.exports = { createRedisConnection, redisConnection };
+module.exports = { getRedisConnection };

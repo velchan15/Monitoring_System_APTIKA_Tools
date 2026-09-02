@@ -1,3 +1,5 @@
+// backend/prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,24 +9,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum MonitoringType {
-  HTTP
-  SPA
-  API
-  GRAPHQL
+// === ENUMS (Standarisasi Nilai) ===
+enum Role {
+  SUPER_ADMIN
+  OPD_ADMIN
+  VIEWER
 }
 
-enum ApplicationStatus {
+enum AppStatus {
   ONLINE
   WARNING
   OFFLINE
   MAINTENANCE
-}
-
-enum DnsStatus {
-  UNKNOWN
-  RESOLVED
-  FAILED
 }
 
 enum IncidentStatus {
@@ -33,236 +29,85 @@ enum IncidentStatus {
   RESOLVED
 }
 
-enum NotificationChannel {
-  TELEGRAM
-  EMAIL
-}
+// === MODELS (Tabel Inti) ===
 
-enum NotificationStatus {
-  PENDING
-  SENT
-  FAILED
+model User {
+  id           String      @id @default(uuid())
+  email        String      @unique
+  passwordHash String
+  name         String
+  role         Role        @default(VIEWER)
+  
+  // Relasi ke tabel Department (Opsional, jika dia Admin OPD tertentu)
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 }
 
 model Department {
-  id           String        @id @default(cuid())
-  code         String        @unique @db.VarChar(50)
-  name         String        @db.VarChar(255)
+  id           String        @id @default(uuid())
+  name         String
+  code         String?       @unique // Singkatan/Kode OPD (misal: DISKOMINFO)
+  
   applications Application[]
   users        User[]
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
-
-  @@map("departments")
+  
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 }
 
 model Application {
-  id                   String                @id @default(cuid())
-  departmentId         String                @map("department_id")
-  name                 String                @db.VarChar(255)
-  url                  String                @db.VarChar(2048)
-  monitoringType       MonitoringType        @default(HTTP) @map("monitoring_type")
-  keyword              String?               @db.VarChar(500)
-  priority             Int                   @default(3)
-  intervalSeconds      Int                   @default(60) @map("interval_seconds")
-  isActive             Boolean               @default(true) @map("is_active")
-  showOnStatusPage     Boolean               @default(false) @map("show_on_status_page")
-  status               ApplicationStatus     @default(ONLINE)
-  consecutiveFailures  Int                   @default(0) @map("consecutive_failures")
-  consecutiveSuccesses Int                   @default(0) @map("consecutive_successes")
-  lastCheckedAt        DateTime?             @map("last_checked_at")
-  department           Department            @relation(fields: [departmentId], references: [id])
-  logs                 MonitoringLog[]
-  maintenanceSchedules MaintenanceSchedule[]
-  incidents            Incident[]
-  uptimeDailySummaries UptimeDailySummary[]
-  createdAt            DateTime              @default(now()) @map("created_at")
-  updatedAt            DateTime              @updatedAt @map("updated_at")
-
-  @@index([departmentId])
-  @@index([isActive])
-  @@map("applications")
-}
-
-model MonitoringNode {
-  id        String          @id @default(cuid())
-  name      String          @unique @db.VarChar(100)
-  region    String          @db.VarChar(100)
-  isActive  Boolean         @default(true) @map("is_active")
-  logs      MonitoringLog[]
-  createdAt DateTime        @default(now()) @map("created_at")
-  updatedAt DateTime        @updatedAt @map("updated_at")
-
-  @@map("monitoring_nodes")
+  id             String          @id @default(uuid())
+  name           String
+  url            String
+  
+  // Relasi ke tabel Department
+  departmentId   String
+  department     Department      @relation(fields: [departmentId], references: [id])
+  
+  currentStatus  AppStatus       @default(ONLINE)
+  isMonitored    Boolean         @default(true)
+  checkInterval  Int             @default(5) // Interval cek (dalam menit)
+  
+  logs           MonitoringLog[]
+  incidents      Incident[]
+  
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 }
 
 model MonitoringLog {
-  id              String         @id @default(cuid())
-  applicationId   String         @map("application_id")
-  nodeId          String         @map("node_id")
-  checkedAt       DateTime       @default(now()) @map("checked_at")
-  httpStatus      Int?           @map("http_status")
-  responseTimeMs  Int?           @map("response_time_ms")
-  sslDays         Int?           @map("ssl_days")
-  dnsStatus       DnsStatus?     @map("dns_status")
-  redirectUrl     String?        @map("redirect_url") @db.VarChar(2048)
-  confidenceScore Decimal?       @map("confidence_score") @db.Decimal(4, 3)
-  healthScore     Decimal?       @map("health_score") @db.Decimal(5, 2)
-  isSuccess       Boolean        @map("is_success")
-  message         String?
-  application     Application    @relation(fields: [applicationId], references: [id])
-  node            MonitoringNode @relation(fields: [nodeId], references: [id])
-  screenshots     Screenshot[]
-  incident        Incident?      @relation("IncidentLog")
-  createdAt       DateTime       @default(now()) @map("created_at")
+  id            String      @id @default(uuid())
+  
+  // Relasi ke tabel Application
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  status        AppStatus
+  responseTime  Int?        // Waktu respon dalam milidetik (ms)
+  statusCode    Int?        // HTTP status code (misal: 200, 404, 500)
+  errorMessage  String?     // Detail error jika website offline
+  checkedAt     DateTime    @default(now())
 
-  @@index([applicationId, checkedAt])
-  @@index([nodeId, checkedAt])
-  @@map("monitoring_logs")
-}
-
-model Screenshot {
-  id              String        @id @default(cuid())
-  monitoringLogId String        @map("monitoring_log_id")
-  filePath        String        @map("file_path") @db.VarChar(2048)
-  monitoringLog   MonitoringLog @relation(fields: [monitoringLogId], references: [id])
-  createdAt       DateTime      @default(now()) @map("created_at")
-
-  @@index([monitoringLogId])
-  @@map("screenshots")
-}
-
-model UptimeDailySummary {
-  id                         String      @id @default(cuid())
-  applicationId              String      @map("application_id")
-  summaryDate                DateTime    @map("summary_date") @db.Date
-  totalChecks                Int         @default(0) @map("total_checks")
-  totalUp                    Int         @default(0) @map("total_up")
-  totalDown                  Int         @default(0) @map("total_down")
-  excludedMaintenanceMinutes Int         @default(0) @map("excluded_maintenance_minutes")
-  uptimePercentage           Decimal     @map("uptime_percentage") @db.Decimal(5, 2)
-  application                Application @relation(fields: [applicationId], references: [id])
-  createdAt                  DateTime    @default(now()) @map("created_at")
-  updatedAt                  DateTime    @updatedAt @map("updated_at")
-
-  @@unique([applicationId, summaryDate])
-  @@map("uptime_daily_summary")
-}
-
-model MaintenanceSchedule {
-  id            String      @id @default(cuid())
-  applicationId String      @map("application_id")
-  startTime     DateTime    @map("start_time")
-  endTime       DateTime    @map("end_time")
-  description   String?
-  application   Application @relation(fields: [applicationId], references: [id])
-  incidents     Incident[]
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
-
-  @@index([applicationId, startTime, endTime])
-  @@map("maintenance_schedules")
+  // Indexing agar query untuk grafik di Looker Studio/Dashboard lebih cepat
+  @@index([applicationId])
+  @@index([checkedAt])
 }
 
 model Incident {
-  id                    String               @id @default(cuid())
-  applicationId         String               @map("application_id")
-  monitoringLogId       String?              @unique @map("monitoring_log_id")
-  maintenanceScheduleId String?              @map("maintenance_schedule_id")
-  title                 String               @db.VarChar(500)
-  status                IncidentStatus       @default(OPEN)
-  isSuppressed          Boolean              @default(false) @map("is_suppressed")
-  openedAt              DateTime             @default(now()) @map("opened_at")
-  resolvedAt            DateTime?            @map("resolved_at")
-  durationMinutes       Int?                 @map("duration_minutes")
-  application           Application          @relation(fields: [applicationId], references: [id])
-  monitoringLog         MonitoringLog?       @relation("IncidentLog", fields: [monitoringLogId], references: [id])
-  maintenanceSchedule   MaintenanceSchedule? @relation(fields: [maintenanceScheduleId], references: [id])
-  notifications         Notification[]
-  createdAt             DateTime             @default(now()) @map("created_at")
-  updatedAt             DateTime             @updatedAt @map("updated_at")
-
-  @@index([applicationId, status])
-  @@index([status, openedAt])
-  @@map("incidents")
-}
-
-model Notification {
-  id         String              @id @default(cuid())
-  incidentId String              @map("incident_id")
-  channel    NotificationChannel
-  recipient  String              @db.VarChar(500)
-  message    String
-  sentAt     DateTime?           @map("sent_at")
-  status     NotificationStatus  @default(PENDING)
-  incident   Incident            @relation(fields: [incidentId], references: [id])
-  createdAt  DateTime            @default(now()) @map("created_at")
-
-  @@index([incidentId, status])
-  @@map("notifications")
-}
-
-model Role {
-  id          String   @id @default(cuid())
-  name        String   @unique @db.VarChar(100)
-  description String?
-  users       User[]
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@map("roles")
-}
-
-model User {
-  id           String      @id @default(cuid())
-  roleId       String      @map("role_id")
-  departmentId String?     @map("department_id")
-  name         String      @db.VarChar(255)
-  email        String      @unique @db.VarChar(320)
-  username     String      @unique @db.VarChar(100)
-  passwordHash String      @map("password_hash")
-  role         Role        @relation(fields: [roleId], references: [id])
-  department   Department? @relation(fields: [departmentId], references: [id])
-  auditLogs    AuditLog[]
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
-
-  @@index([departmentId])
-  @@map("users")
-}
-
-model AuditLog {
-  id        String   @id @default(cuid())
-  userId    String?  @map("user_id")
-  action    String   @db.VarChar(255)
-  tableName String   @map("table_name") @db.VarChar(100)
-  oldValue  Json?    @map("old_value")
-  newValue  Json?    @map("new_value")
-  user      User?    @relation(fields: [userId], references: [id])
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@index([tableName, createdAt])
-  @@index([userId, createdAt])
-  @@map("audit_logs")
-}
-
-model SchedulerHeartbeat {
-  id              String   @id @default(cuid())
-  workerName      String   @unique @map("worker_name") @db.VarChar(100)
-  lastHeartbeatAt DateTime @default(now()) @map("last_heartbeat_at")
-  status          String   @default("healthy") @db.VarChar(50)
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-
-  @@map("scheduler_heartbeat")
-}
-
-model DataRetentionPolicy {
-  id            String   @id @default(cuid())
-  tableName     String   @unique @map("table_name") @db.VarChar(100)
-  retentionDays Int      @map("retention_days")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  @@map("data_retention_policy")
+  id            String         @id @default(uuid())
+  
+  // Relasi ke tabel Application
+  applicationId String
+  application   Application    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  title         String
+  description   String?
+  status        IncidentStatus @default(OPEN)
+  
+  startedAt     DateTime       @default(now())
+  resolvedAt    DateTime?
+  updatedAt     DateTime       @updatedAt
 }

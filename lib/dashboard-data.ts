@@ -721,3 +721,30 @@ export const initialOpdSummaries: OpdSummary[] = [
     ],
   },
 ];
+
+// ==========================================
+// HELPER FUNCTION UNTUK DETAIL PAGE OPD
+// ==========================================
+
+export function getApplicationsByOpd(opdCode: string) {
+  const opd = initialOpdSummaries.find(
+    (item) => item.code.toLowerCase() === opdCode.toLowerCase()
+  );
+
+  if (!opd) return [];
+
+  return opd.appsList.map((appName, index) => {
+    const matchService = initialUptimeServices.find(
+      (srv) => srv.name.toLowerCase() === appName.toLowerCase()
+    );
+
+    return {
+      id: `${opd.code.toLowerCase()}-app-${index + 1}`,
+      name: appName,
+      url: matchService ? matchService.url : `https://${opd.code.toLowerCase()}.jabarprov.go.id/${appName.toLowerCase().replace(/\s+/g, "-")}`,
+      status: matchService ? (matchService.status === "online" ? "UP" : matchService.status === "offline" ? "DOWN" : "WARNING") : "UP",
+      uptime: matchService ? matchService.uptime30Days : opd.avgUptime,
+      latency: matchService ? matchService.currentLatencyMs : opd.avgLatencyMs,
+    };
+  });
+}
