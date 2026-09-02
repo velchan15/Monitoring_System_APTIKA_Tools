@@ -25,7 +25,7 @@ export default function OpdDetailPage() {
   const params = useParams();
   const opdId = params.id as string;
 
-  // State modal detail aplikasi
+  // Deklarasi state selectedApp (mencegah error is not defined)
   const [selectedApp, setSelectedApp] = useState<{
     name: string;
     url: string;
@@ -52,7 +52,7 @@ export default function OpdDetailPage() {
     );
   }
 
-  // Data Rekap & Screenshot 7 Hari Terakhir
+  // Data Rekap Status 7 Hari Terakhir
   const last7DaysData = [
     { date: "26 Agu 2026", uptime: "100%", ping: "42ms", status: "Normal" },
     { date: "27 Agu 2026", uptime: "100%", ping: "45ms", status: "Normal" },
@@ -166,7 +166,7 @@ export default function OpdDetailPage() {
 
         </div>
 
-        {/* Daftar Aplikasi & Uptime */}
+        {/* Daftar Aplikasi & Uptime Monitor */}
         <div className="space-y-4">
           <h2 className="text-lg font-bold text-slate-900">
             Daftar Aplikasi & Uptime ({apps.length})
@@ -185,7 +185,7 @@ export default function OpdDetailPage() {
 
               return (
                 <div key={app.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs hover:border-slate-300 transition space-y-3">
-                  {/* Baris Atas */}
+                  {/* Header Card */}
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                     <div className="flex items-start gap-3">
                       <span className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${statusDotColor}`} />
@@ -209,10 +209,10 @@ export default function OpdDetailPage() {
                       </div>
                     </div>
 
-                    {/* Button Detail + PING + SSL + SLA */}
+                    {/* Tombol Detail + Metrik */}
                     <div className="flex items-center gap-4 self-end md:self-auto text-xs">
                       
-                      {/* BUTTON DETAIL (Kiri PING) */}
+                      {/* Tombol Detail */}
                       <button
                         type="button"
                         onClick={() => setSelectedApp({ name: app.name, url: app.url, status: app.status })}
@@ -250,7 +250,7 @@ export default function OpdDetailPage() {
                     </div>
                   </div>
 
-                  {/* Bar Uptime 30 Hari */}
+                  {/* Visualisasi Bar Uptime 30 Hari */}
                   <div className="pt-2">
                     <div className="flex items-center gap-1 h-6 w-full">
                       {Array.from({ length: 30 }).map((_, i) => {
@@ -283,10 +283,10 @@ export default function OpdDetailPage() {
 
       </div>
 
-      {/* POP-UP MODAL DETAIL (REKAP 7 HARI & ROTASI SCREENSHOT) */}
+      {/* POP-UP MODAL DETAIL (REKAP 7 HARI & SINGLE SCREENSHOT) */}
       {selectedApp && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             
             {/* Header Modal */}
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50">
@@ -310,7 +310,7 @@ export default function OpdDetailPage() {
             {/* Isi Modal */}
             <div className="p-6 overflow-y-auto space-y-6">
               
-              {/* 1. Rekap Informasi 7 Hari Terakhir */}
+              {/* 1. Rekap Tabel 7 Hari Terakhir */}
               <div>
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                   <Calendar className="w-4 h-4 text-teal-600" />
@@ -347,38 +347,47 @@ export default function OpdDetailPage() {
                 </div>
               </div>
 
-              {/* 2. Screenshot Aplikasi (Maksimal 7 Hari Terakhir) */}
+              {/* 2. Screenshot Aplikasi (1 Gambar Terbaru & Efisien) */}
               <div>
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                     <ImageIcon className="w-4 h-4 text-teal-600" />
-                    Screenshot Tampilan Aplikasi (7 Hari Terakhir)
+                    Tangkapan Layar Terbaru (Hari Ke-7)
                   </h4>
-                  <span className="text-[11px] text-slate-400 italic">
-                    *Gambar &gt;7 hari otomatis dihapus & ditimpa rotasi baru
+                  <span className="text-[10px] text-teal-700 bg-teal-50 px-2 py-0.5 rounded font-mono font-semibold border border-teal-200">
+                    Auto-overwrite (1 File/App)
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  {last7DaysData.map((item, idx) => (
-                    <div key={idx} className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
-                      <div className="h-28 bg-slate-200 flex flex-col items-center justify-center text-slate-400 p-2 relative group">
-                        <ImageIcon className="w-8 h-8 mb-1 opacity-60" />
-                        <span className="text-[10px] font-semibold text-slate-500">
-                          Screenshot_{item.date.replace(/\s+/g, "_")}.png
-                        </span>
-                        <div className="absolute inset-0 bg-teal-900/10 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-semibold">
-                          Lihat Full Resolusi
-                        </div>
-                      </div>
-                      
-                      <div className="p-2 bg-white border-t border-slate-200 flex justify-between items-center text-[10px]">
-                        <span className="font-semibold text-slate-700">{item.date}</span>
-                        <span className="text-emerald-600 font-mono font-bold">Terverifikasi</span>
-                      </div>
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
+                  <div className="h-48 bg-slate-200 flex flex-col items-center justify-center text-slate-400 p-4 relative group">
+                    <ImageIcon className="w-10 h-10 mb-2 opacity-60" />
+                    <span className="text-xs font-semibold text-slate-600">
+                      latest_screenshot.webp
+                    </span>
+                    <span className="text-[10px] text-slate-400 mt-0.5">
+                      Format: WebP (Kompresi Efisien ~50-80 KB)
+                    </span>
+
+                    <div className="absolute inset-0 bg-teal-900/10 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-semibold">
+                      Klik untuk Memperbesar Gambar
                     </div>
-                  ))}
+                  </div>
+                  
+                  <div className="p-3 bg-white border-t border-slate-200 flex justify-between items-center text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-slate-800">01 Sep 2026 (Hari Terakhir)</span>
+                      <span className="text-[10px] text-slate-400 font-mono">1080x720.webp</span>
+                    </div>
+                    <span className="text-emerald-600 font-mono font-bold text-[11px] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                      Terverifikasi
+                    </span>
+                  </div>
                 </div>
+                
+                <p className="text-[11px] text-slate-400 mt-1.5 italic">
+                  *Gambar screenshot lama otomatis ditimpa file baru setiap akhir siklus 7 hari untuk menghemat penggunaan storage server.
+                </p>
               </div>
 
             </div>
