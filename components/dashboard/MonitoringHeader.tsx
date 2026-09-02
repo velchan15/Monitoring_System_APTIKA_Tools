@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Bell,
   Calendar,
@@ -24,6 +24,13 @@ export function MonitoringHeader({ onOpenSidebar, onNavigateTab }: MonitoringHea
   const { user, setLoginModalOpen, logout } = useAuth();
   const [isProfileMenuOpen, setProfileMenuOpen] = useState(false);
   const [isNotifOpen, setNotifOpen] = useState(false);
+  
+  // State untuk mencegah Hydration Error
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Live clock
   const now = new Date();
@@ -47,13 +54,13 @@ export function MonitoringHeader({ onOpenSidebar, onNavigateTab }: MonitoringHea
 
       {/* Right toolbar */}
       <div className="flex shrink-0 items-center gap-2">
-        {/* Date badge */}
+        {/* Date badge - Hanya dirender jika komponen sudah mounted di browser */}
         <button
           type="button"
           className="hidden items-center gap-1.5 rounded-lg border border-border bg-canvas px-3 py-1.5 text-xs font-medium text-ink/70 hover:bg-canvas/80 md:flex"
         >
           <Calendar className="h-3.5 w-3.5 text-brand" />
-          {dateLabel}
+          {mounted ? dateLabel : "Memuat..."}
           <ChevronDown className="h-3 w-3 text-ink/40 ml-0.5" />
         </button>
 
