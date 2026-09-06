@@ -25,11 +25,12 @@ export default function OpdDetailPage() {
   const params = useParams();
   const opdId = params.id as string;
 
-  // Deklarasi state selectedApp (mencegah error is not defined)
+  // State untuk modal detail aplikasi beserta screenshot
   const [selectedApp, setSelectedApp] = useState<{
     name: string;
     url: string;
     status: string;
+    screenshotUrl?: string;
   } | null>(null);
 
   const opd = initialOpdSummaries.find(
@@ -173,7 +174,7 @@ export default function OpdDetailPage() {
           </h2>
 
           <div className="space-y-4">
-            {apps.map((app) => {
+            {apps.map((app: any) => {
               const isOffline = app.status === "DOWN";
               const isWarning = app.status === "WARNING";
               
@@ -215,7 +216,12 @@ export default function OpdDetailPage() {
                       {/* Tombol Detail */}
                       <button
                         type="button"
-                        onClick={() => setSelectedApp({ name: app.name, url: app.url, status: app.status })}
+                        onClick={() => setSelectedApp({ 
+                          name: app.name, 
+                          url: app.url, 
+                          status: app.status,
+                          screenshotUrl: app.screenshotUrl || "/screenshots/default.png"
+                        })}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition shadow-xs"
                       >
                         <Info className="w-3.5 h-3.5 text-teal-600" />
@@ -283,7 +289,7 @@ export default function OpdDetailPage() {
 
       </div>
 
-      {/* POP-UP MODAL DETAIL (REKAP 7 HARI & SINGLE SCREENSHOT) */}
+      {/* POP-UP MODAL DETAIL (REKAP 7 HARI & SCREENSHOT OTOMATIS) */}
       {selectedApp && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -292,7 +298,7 @@ export default function OpdDetailPage() {
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50">
               <div>
                 <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wider bg-teal-100/60 px-2.5 py-0.5 rounded-full border border-teal-200">
-                  Detail Monitoring 7 Hari Terakhir
+                  Detail Monitoring & Tangkapan Layar
                 </span>
                 <h3 className="text-lg font-bold text-slate-900 mt-1">
                   {selectedApp.name}
@@ -347,47 +353,43 @@ export default function OpdDetailPage() {
                 </div>
               </div>
 
-              {/* 2. Screenshot Aplikasi (1 Gambar Terbaru & Efisien) */}
+              {/* 2. Screenshot Otomatis dari Playwright */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                     <ImageIcon className="w-4 h-4 text-teal-600" />
-                    Tangkapan Layar Terbaru (Hari Ke-7)
+                    Tangkapan Layar Realtime (Playwright)
                   </h4>
                   <span className="text-[10px] text-teal-700 bg-teal-50 px-2 py-0.5 rounded font-mono font-semibold border border-teal-200">
-                    Auto-overwrite (1 File/App)
+                    Auto-captured
                   </span>
                 </div>
 
                 <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
-                  <div className="h-48 bg-slate-200 flex flex-col items-center justify-center text-slate-400 p-4 relative group">
-                    <ImageIcon className="w-10 h-10 mb-2 opacity-60" />
-                    <span className="text-xs font-semibold text-slate-600">
-                      latest_screenshot.webp
-                    </span>
-                    <span className="text-[10px] text-slate-400 mt-0.5">
-                      Format: WebP (Kompresi Efisien ~50-80 KB)
-                    </span>
-
-                    <div className="absolute inset-0 bg-teal-900/10 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-semibold">
-                      Klik untuk Memperbesar Gambar
+                  {selectedApp.screenshotUrl ? (
+                    <img 
+                      src={selectedApp.screenshotUrl} 
+                      alt={selectedApp.name} 
+                      className="w-full h-48 object-cover border-b border-slate-200"
+                    />
+                  ) : (
+                    <div className="h-48 bg-slate-200 flex flex-col items-center justify-center text-slate-400 p-4">
+                      <ImageIcon className="w-10 h-10 mb-2 opacity-60" />
+                      <span className="text-xs font-semibold text-slate-600">
+                        Belum ada tangkapan layar otomatis
+                      </span>
                     </div>
-                  </div>
+                  )}
                   
-                  <div className="p-3 bg-white border-t border-slate-200 flex justify-between items-center text-xs">
+                  <div className="p-3 bg-white flex justify-between items-center text-xs">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-800">01 Sep 2026 (Hari Terakhir)</span>
-                      <span className="text-[10px] text-slate-400 font-mono">1080x720.webp</span>
+                      <span className="font-semibold text-slate-800">{selectedApp.name}</span>
                     </div>
                     <span className="text-emerald-600 font-mono font-bold text-[11px] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      Terverifikasi
+                      Terverifikasi Sistem
                     </span>
                   </div>
                 </div>
-                
-                <p className="text-[11px] text-slate-400 mt-1.5 italic">
-                  *Gambar screenshot lama otomatis ditimpa file baru setiap akhir siklus 7 hari untuk menghemat penggunaan storage server.
-                </p>
               </div>
 
             </div>

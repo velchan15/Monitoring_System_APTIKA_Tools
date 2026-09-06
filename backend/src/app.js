@@ -1,6 +1,7 @@
 const express = require("express");
 const authRoutes = require("./routes/auth.routes");
 const applicationRoutes = require("./routes/application.routes");
+const incidentRoutes = require('./routes/incidentRoutes');
 
 function createApp({ readiness = async () => ({ database: "error", redis: "error" }) } = {}) {
   const app = express();
@@ -28,6 +29,7 @@ function createApp({ readiness = async () => ({ database: "error", redis: "error
   // API Routes
   app.use("/api/auth", authRoutes);
   app.use("/api/applications", applicationRoutes);
+  app.use('/api/incidents', incidentRoutes); // <-- Pindahkan ke sini
 
   // 404 Handler (Harus selalu di paling bawah setelah semua route)
   app.use((_request, response) => {

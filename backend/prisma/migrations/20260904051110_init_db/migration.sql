@@ -88,13 +88,21 @@ CREATE TABLE "screenshots" (
 
 -- CreateTable
 CREATE TABLE "incidents" (
-    "id" BIGSERIAL NOT NULL,
+    "id" SERIAL NOT NULL,
     "application_id" INTEGER NOT NULL,
-    "started_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "ticket_number" VARCHAR(50),
+    "opd_name" VARCHAR(255),
+    "severity" VARCHAR(50),
+    "status" VARCHAR(50) NOT NULL DEFAULT 'active',
+    "started_at" TEXT,
     "resolved_at" TIMESTAMP(3),
+    "duration" VARCHAR(50),
+    "root_cause" TEXT,
+    "timeline" JSONB[],
     "cause" TEXT,
     "is_suppressed" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "incidents_pkey" PRIMARY KEY ("id")
 );
@@ -102,7 +110,7 @@ CREATE TABLE "incidents" (
 -- CreateTable
 CREATE TABLE "notifications" (
     "id" BIGSERIAL NOT NULL,
-    "incident_id" BIGINT NOT NULL,
+    "incident_id" INTEGER NOT NULL,
     "channel" VARCHAR(20) NOT NULL,
     "recipient" VARCHAR(150) NOT NULL,
     "message" TEXT NOT NULL,
@@ -159,6 +167,17 @@ CREATE TABLE "audit_logs" (
     CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "incident_updates" (
+    "id" SERIAL NOT NULL,
+    "incident_id" INTEGER NOT NULL,
+    "message" TEXT NOT NULL,
+    "attachment" VARCHAR(500),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "incident_updates_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "roles_name_key" ON "roles"("name");
 
@@ -167,6 +186,9 @@ CREATE UNIQUE INDEX "departments_code_key" ON "departments"("code");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "incidents_ticket_number_key" ON "incidents"("ticket_number");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "uptime_daily_summaries_application_id_date_key" ON "uptime_daily_summaries"("application_id", "date");
@@ -206,3 +228,6 @@ ALTER TABLE "uptime_daily_summaries" ADD CONSTRAINT "uptime_daily_summaries_appl
 
 -- AddForeignKey
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "incident_updates" ADD CONSTRAINT "incident_updates_incident_id_fkey" FOREIGN KEY ("incident_id") REFERENCES "incidents"("id") ON DELETE CASCADE ON UPDATE CASCADE;

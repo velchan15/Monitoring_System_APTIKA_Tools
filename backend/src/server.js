@@ -10,6 +10,7 @@ const port = Number.parseInt(process.env.PORT || "3001", 10);
 const app = createApp({
   readiness: createReadinessCheck({ prisma, redis: redisConnection }),
 });
+
 const server = app.listen(port, () => {
   console.log(`Monitoring API berjalan pada http://127.0.0.1:${port}`);
 });

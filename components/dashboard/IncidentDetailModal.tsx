@@ -6,8 +6,7 @@ import {
   CheckCircle2, 
   Send, 
   Calendar,
-  Image as ImageIcon,
-  Upload
+  Image as ImageIcon
 } from "lucide-react";
 
 import { type IncidentItem, type IncidentStatus } from "@/lib/dashboard-data";
@@ -27,7 +26,6 @@ export function IncidentDetailModal({
   onUpdateStatus,
 }: IncidentDetailModalProps) {
   const [noteInput, setNoteInput] = useState("");
-  const [screenshot, setScreenshot] = useState<string | null>(null);
 
   if (!isOpen || !incident) return null;
 
@@ -36,14 +34,6 @@ export function IncidentDetailModal({
     if (!noteInput.trim()) return;
     onUpdateStatus(incident.id, incident.status, noteInput.trim());
     setNoteInput("");
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      setScreenshot(imageUrl);
-    }
   };
 
   const last7DaysData = [
@@ -124,7 +114,7 @@ export function IncidentDetailModal({
             </div>
           </div>
 
-          {/* REKAP 7 HARI & SCREENSHOT (DITARO DI BAWAH KRONOLOGI) */}
+          {/* REKAP 7 HARI & SCREENSHOT OTOMATIS PLAYWRIGHT */}
           <div className="space-y-4 pt-2 border-t border-border">
             <div>
               <h4 className="font-bold text-ink uppercase tracking-wider text-[10px] mb-2.5 flex items-center gap-1.5">
@@ -161,30 +151,30 @@ export function IncidentDetailModal({
               </div>
             </div>
 
-            {/* Bagian Tangkapan Layar / Screenshot */}
+            {/* Bagian Tangkapan Layar Otomatis Playwright */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <h4 className="font-bold text-ink uppercase tracking-wider text-[10px] flex items-center gap-1.5">
                   <ImageIcon className="w-4 h-4 text-brand" />
-                  Tangkapan Layar Saat Insiden (Hari Ke-7)
+                  Tangkapan Layar Realtime (Playwright)
                 </h4>
-                <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 bg-brand-soft text-brand rounded hover:bg-brand/20 font-semibold transition text-[11px]">
-                  <Upload className="w-3 h-3" />
-                  Upload Bukti
-                  <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
-                </label>
+                <span className="text-[10px] text-red-700 bg-red-50 px-2 py-0.5 rounded font-mono font-semibold border border-red-200">
+                  Auto-Captured on Failure
+                </span>
               </div>
 
               <div className="border border-border rounded-xl overflow-hidden bg-canvas">
-                {screenshot ? (
-                  <div className="relative p-2 flex justify-center bg-slate-950">
-                    <img src={screenshot} alt="Incident Screenshot" className="max-h-48 rounded object-contain" />
-                  </div>
+                {incident.screenshotUrl ? (
+                  <img 
+                    src={incident.screenshotUrl} 
+                    alt={incident.appName} 
+                    className="w-full h-48 object-cover border-b border-border"
+                  />
                 ) : (
                   <div className="h-40 bg-border/40 flex flex-col items-center justify-center text-ink/40 p-4">
                     <ImageIcon className="w-8 h-8 mb-1.5 opacity-50" />
-                    <span className="text-xs font-semibold text-ink/60">Belum ada tangkapan layar diunggah</span>
-                    <span className="text-[10px] text-ink/40 mt-0.5">Klik tombol "Upload Bukti" di atas untuk memasukkan gambar error</span>
+                    <span className="text-xs font-semibold text-ink/60">Belum ada tangkapan layar otomatis</span>
+                    <span className="text-[10px] text-ink/40 mt-0.5">Diambil otomatis oleh sistem saat error terdeteksi</span>
                   </div>
                 )}
               </div>
