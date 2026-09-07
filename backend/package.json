@@ -1,0 +1,35 @@
+{
+  "name": "aptika-monitoring-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Backend foundation for Sistem Monitoring Aplikasi APTIKA",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "test": "node --test",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:validate": "prisma validate --schema prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.16.0",
+    "axios": "^1.20.0",
+    "bcryptjs": "^3.0.3",
+    "bullmq": "^5.58.0",
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0",
+    "express-validator": "^7.3.2",
+    "ioredis": "^5.7.0",
+    "jsonwebtoken": "^9.0.3"
+  },
+  "devDependencies": {
+    "prisma": "^6.16.0",
+    "redis-memory-server": "^0.17.1"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  }
+}
