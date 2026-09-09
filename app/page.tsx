@@ -1,16 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Activity,
-  AlertOctagon,
-  ArrowRight,
-  Building2,
-  CheckCircle2,
-  Layers,
-  ShieldAlert,
-  ShieldCheck,
-} from "lucide-react";
+import { Activity } from "lucide-react";
 
 import { LoginModal } from "@/components/auth/LoginModal";
 import { DashboardIncidentList, IncidentTable } from "@/components/dashboard/IncidentTable";
@@ -23,15 +14,27 @@ import { StatusCard } from "@/components/dashboard/StatusCard";
 import { StatusDonutChart } from "@/components/dashboard/StatusDonutChart";
 import { StatusTrendChart } from "@/components/dashboard/StatusTrendChart";
 import { TopUptimeWidget, UptimeList } from "@/components/dashboard/UptimeList";
+
+// New feature pages
+import { IncidentManagementView } from "@/components/incidents/IncidentManagementView";
+import { ResponseTimeView } from "@/components/responsetime/ResponseTimeView";
+import { UptimeReportView } from "@/components/reports/UptimeReportView";
+import { DisruptionReportView } from "@/components/reports/DisruptionReportView";
+import { ExportReportView } from "@/components/reports/ExportReportView";
+import { NotificationsView } from "@/components/notifications/NotificationsView";
+import { UserRoleView } from "@/components/users/UserRoleView";
+import { IntegrationsView } from "@/components/integrations/IntegrationsView";
+import { AuditTrailView } from "@/components/audit/AuditTrailView";
+
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { dashboardStatusMetrics } from "@/lib/dashboard-data";
+import { mockIncidents } from "@/lib/data/incidents";
 
-// ---- Active Incident/Offline summary badge ----
+// ---- Live alert badge ----
 function LiveAlertBadge() {
   const onlineMetric = dashboardStatusMetrics.find((m) => m.key === "online");
   const totalMetric = dashboardStatusMetrics.find((m) => m.key === "total");
   if (!onlineMetric || !totalMetric) return null;
-
   return (
     <div className="flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-ink shadow-2xs">
       <span className="h-2 w-2 rounded-full bg-status-online motion-safe:animate-ping" />
@@ -40,7 +43,7 @@ function LiveAlertBadge() {
   );
 }
 
-// ---- Quick Stats strip for dashboard header ----
+// ---- Greeting ----
 function DashboardGreeting({ name }: { name?: string }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -57,11 +60,39 @@ function DashboardGreeting({ name }: { name?: string }) {
   );
 }
 
+// ---- Page header helper ----
+interface PageHeaderProps {
+  title: string;
+  subtitle: string;
+  icon?: React.ElementType;
+  tag?: string;
+}
+
+function PageHeader({ title, subtitle, icon: Icon, tag }: PageHeaderProps) {
+  return (
+    <div className="space-y-0.5">
+      {tag && (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-brand">
+          {Icon && <Icon className="h-3 w-3" />}
+          {tag}
+        </span>
+      )}
+      <h1 className="text-xl font-bold tracking-tight text-ink">{title}</h1>
+      <p className="text-xs text-ink/55">{subtitle}</p>
+    </div>
+  );
+}
+
 // ---- Main dashboard content ----
 function DashboardContent() {
   const { user } = useAuth();
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<NavTabId>("dashboard");
+
+  // Derive active incident count for sidebar badge (spec 6.1)
+  const activeIncidentCount = mockIncidents.filter(
+    (i) => i.status === "open" || i.status === "investigating"
+  ).length;
 
   const handleNav = (tab: NavTabId | string) => {
     setActiveTab(tab as NavTabId);
@@ -76,10 +107,11 @@ function DashboardContent() {
         onClose={() => setSidebarOpen(false)}
         activeTab={activeTab}
         onSelectTab={(tab) => setActiveTab(tab)}
+        activeIncidentCount={activeIncidentCount}
       />
 
-      {/* Main layout: push content when sidebar is visible on desktop */}
-      <div className="lg:pl-60 flex flex-col min-h-dvh">
+      {/* Main layout: sidebar is w-64, so push main content by pl-64 on desktop */}
+      <div className="lg:pl-64 flex flex-col min-h-dvh">
         {/* Sticky Header */}
         <MonitoringHeader
           onOpenSidebar={() => setSidebarOpen(true)}
@@ -92,17 +124,14 @@ function DashboardContent() {
           {/* ===================== DASHBOARD ===================== */}
           {activeTab === "dashboard" && (
             <>
-              {/* Greeting */}
               <DashboardGreeting name={user?.name} />
 
-              {/* 5 Status Cards */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 {dashboardStatusMetrics.map((metric) => (
                   <StatusCard key={metric.key} metric={metric} />
                 ))}
               </div>
 
-              {/* Chart Row: Trend Chart left (wider) + Donut Chart right */}
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
                 <div className="xl:col-span-3" style={{ minHeight: 320 }}>
                   <StatusTrendChart title="Grafik Status Aplikasi" />
@@ -112,95 +141,176 @@ function DashboardContent() {
                 </div>
               </div>
 
-              {/* Lower Row: Incident Table left + Top Uptime right */}
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
                 <div className="xl:col-span-3">
                   <DashboardIncidentList limit={5} />
                 </div>
                 <div className="xl:col-span-2">
-                  <TopUptimeWidget
-                    limit={6}
-                    onViewAll={() => setActiveTab("uptime")}
-                  />
+                  <TopUptimeWidget limit={6} onViewAll={() => setActiveTab("uptime")} />
                 </div>
               </div>
 
-              {/* OPD Summary full row */}
               <DashboardOpdSummary onViewAll={() => setActiveTab("opd")} />
             </>
           )}
 
-          {/* ===================== UPTIME PAGE ===================== */}
+          {/* ===================== UPTIME / APPLICATION LIST ===================== */}
           {activeTab === "uptime" && (
             <div className="space-y-4">
-              <div>
-                <h1 className="text-xl font-bold tracking-tight text-ink">Daftar Aplikasi & Uptime</h1>
-                <p className="mt-0.5 text-xs text-ink/55">Pemantauan ketersediaan 30-hari, ping response time, dan validitas SSL per layanan</p>
-              </div>
+              <PageHeader
+                title="Daftar Aplikasi & Uptime"
+                subtitle="Pemantauan ketersediaan 30-hari, ping response time, dan validitas SSL per layanan"
+                icon={Activity}
+                tag="Status Layanan"
+              />
               <UptimeList />
             </div>
           )}
 
-          {/* ===================== INCIDENTS PAGE ===================== */}
+          {/* ===================== INCIDENT MANAGEMENT ===================== */}
           {activeTab === "incidents" && (
             <div className="space-y-4">
-              <div>
-                <h1 className="text-xl font-bold tracking-tight text-ink">Manajemen Insiden & Gangguan</h1>
-                <p className="mt-0.5 text-xs text-ink/55">Lacak, investigasi, dan selesaikan tiket gangguan layanan per Perangkat Daerah</p>
-              </div>
-              <IncidentTable />
+              <PageHeader
+                title="Manajemen Insiden & Gangguan"
+                subtitle="Lacak, investigasi, dan selesaikan tiket gangguan layanan per Perangkat Daerah"
+                tag="Tiket Insiden"
+              />
+              <IncidentManagementView />
             </div>
           )}
 
-          {/* ===================== OPD PAGE ===================== */}
+          {/* ===================== OPD DASHBOARD ===================== */}
           {activeTab === "opd" && (
             <div className="space-y-4">
-              <div>
-                <h1 className="text-xl font-bold tracking-tight text-ink">Dashboard Perangkat Daerah (OPD)</h1>
-                <p className="mt-0.5 text-xs text-ink/55">Pemantauan kinerja sistem per instansi Pemerintah Provinsi Jawa Barat</p>
-              </div>
+              <PageHeader
+                title="Dashboard Perangkat Daerah (OPD)"
+                subtitle="Pemantauan kinerja sistem per instansi Pemerintah Provinsi Jawa Barat"
+                tag="Per OPD"
+              />
               <OpdSummaryGrid />
             </div>
           )}
 
-          {/* ===================== SSL PAGE ===================== */}
+          {/* ===================== SSL CERTIFICATE ===================== */}
           {activeTab === "ssl" && (
             <div className="space-y-4">
-              <div>
-                <h1 className="text-xl font-bold tracking-tight text-ink">Pemantauan Sertifikat SSL/TLS</h1>
-                <p className="mt-0.5 text-xs text-ink/55">Audit keamanan dan peringatan dini masa berlaku sertifikat HTTPS seluruh domain</p>
-              </div>
+              <PageHeader
+                title="Pemantauan Sertifikat SSL/TLS"
+                subtitle="Audit keamanan dan peringatan dini masa berlaku sertifikat HTTPS seluruh domain"
+                tag="Keamanan SSL"
+              />
               <SslMonitorView />
             </div>
           )}
 
-          {/* ===================== SETTINGS PAGE ===================== */}
-          {(activeTab === "settings" || activeTab === "notifikasi" || activeTab === "user_role" || activeTab === "integrasi" || activeTab === "audit_trail") && (
+          {/* ===================== RESPONSE TIME ===================== */}
+          {activeTab === "response_time" && (
             <div className="space-y-4">
-              <div>
-                <h1 className="text-xl font-bold tracking-tight text-ink">Pengaturan Sistem & Akun</h1>
-                <p className="mt-0.5 text-xs text-ink/55">Konfigurasi robot monitoring, webhook notifikasi, dan manajemen akses pengguna</p>
-              </div>
+              <PageHeader
+                title="Waktu Respons Aplikasi (Response Time)"
+                subtitle="Analisis latensi dan performa response time layanan digital per OPD secara periodik"
+                tag="Analisis Latensi"
+              />
+              <ResponseTimeView />
+            </div>
+          )}
+
+          {/* ===================== UPTIME REPORT ===================== */}
+          {activeTab === "laporan_uptime" && (
+            <div className="space-y-4">
+              <PageHeader
+                title="Laporan Uptime Layanan"
+                subtitle="Rekap uptime, downtime kumulatif, dan kepatuhan SLA per aplikasi dan Perangkat Daerah"
+                tag="Laporan Uptime"
+              />
+              <UptimeReportView />
+            </div>
+          )}
+
+          {/* ===================== DISRUPTION REPORT ===================== */}
+          {activeTab === "laporan_gangguan" && (
+            <div className="space-y-4">
+              <PageHeader
+                title="Laporan Gangguan & Disruption"
+                subtitle="Rekap historis insiden, analisis akar masalah, dan tren gangguan per periode"
+                tag="Laporan Gangguan"
+              />
+              <DisruptionReportView />
+            </div>
+          )}
+
+          {/* ===================== EXPORT REPORT ===================== */}
+          {activeTab === "ekspor" && (
+            <div className="space-y-4">
+              <PageHeader
+                title="Ekspor & Unduh Laporan"
+                subtitle="Generate dan unduh laporan uptime, gangguan, atau SSL dalam format PDF, Excel, atau CSV"
+                tag="Ekspor Data"
+              />
+              <ExportReportView />
+            </div>
+          )}
+
+          {/* ===================== NOTIFICATIONS ===================== */}
+          {activeTab === "notifikasi" && (
+            <div className="space-y-4">
+              <PageHeader
+                title="Pusat Notifikasi"
+                subtitle="Kelola notifikasi insiden, pengaturan kanal pengiriman, dan daftar penerima per OPD"
+                tag="Notifikasi"
+              />
+              <NotificationsView />
+            </div>
+          )}
+
+          {/* ===================== USER & ROLE ===================== */}
+          {activeTab === "user_role" && (
+            <div className="space-y-4">
+              <PageHeader
+                title="Manajemen Pengguna & Role"
+                subtitle="Kelola akun pengguna, hak akses berbasis role (RBAC), dan lingkup akses per OPD"
+                tag="Akses & Keamanan"
+              />
+              <UserRoleView />
+            </div>
+          )}
+
+          {/* ===================== INTEGRATIONS ===================== */}
+          {activeTab === "integrasi" && (
+            <div className="space-y-4">
+              <PageHeader
+                title="Konfigurasi Integrasi Sistem"
+                subtitle="Kelola koneksi ke Katalog Aplikasi, Telegram Bot, SMTP Email, dan webhook eksternal"
+                tag="Integrasi"
+              />
+              <IntegrationsView />
+            </div>
+          )}
+
+          {/* ===================== AUDIT TRAIL ===================== */}
+          {activeTab === "audit_trail" && (
+            <div className="space-y-4">
+              <PageHeader
+                title="Audit Trail & Log Aktivitas"
+                subtitle="Rekam jejak aktivitas pengguna, perubahan konfigurasi, dan aksi kritis sistem"
+                tag="Keamanan & Audit"
+              />
+              <AuditTrailView />
+            </div>
+          )}
+
+          {/* ===================== LEGACY SETTINGS (SettingsView) ===================== */}
+          {activeTab === "settings" && (
+            <div className="space-y-4">
+              <PageHeader
+                title="Pengaturan Sistem & Akun"
+                subtitle="Konfigurasi robot monitoring, webhook notifikasi, dan manajemen akses pengguna"
+                tag="Pengaturan"
+              />
               <SettingsView />
             </div>
           )}
 
-          {/* ===================== OTHER NAV ITEMS (placeholder) ===================== */}
-          {(activeTab === "response_time" || activeTab === "laporan_uptime" || activeTab === "laporan_gangguan" || activeTab === "ekspor") && (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
-              <Layers className="h-12 w-12 text-ink/20 mb-4" />
-              <h2 className="text-lg font-bold text-ink">Fitur Dalam Pengembangan</h2>
-              <p className="mt-1 text-sm text-ink/50">Halaman ini akan tersedia di pembaruan selanjutnya.</p>
-              <button
-                type="button"
-                onClick={() => setActiveTab("dashboard")}
-                className="mt-6 flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand/90"
-              >
-                Kembali ke Dashboard
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
-          )}
         </main>
 
         {/* Footer */}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { initialOpdSummaries, getApplicationsByOpd } from "@/lib/dashboard-data";
 import { 
@@ -25,13 +25,27 @@ export default function OpdDetailPage() {
   const params = useParams();
   const opdId = params.id as string;
 
-  // State untuk modal detail aplikasi beserta screenshot
+  // Deklarasi state selectedApp (mencegah error is not defined)
   const [selectedApp, setSelectedApp] = useState<{
     name: string;
     url: string;
     status: string;
-    screenshotUrl?: string;
   } | null>(null);
+
+  const closeModal = useCallback(() => setSelectedApp(null), []);
+
+  // Modal accessibility: scroll lock, Escape key, click-outside handled in JSX
+  useEffect(() => {
+    if (!selectedApp) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeModal(); };
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [selectedApp, closeModal]);
 
   const opd = initialOpdSummaries.find(
     (item) => item.code.toLowerCase() === opdId.toLowerCase()
@@ -174,7 +188,7 @@ export default function OpdDetailPage() {
           </h2>
 
           <div className="space-y-4">
-            {apps.map((app: any) => {
+            {apps.map((app) => {
               const isOffline = app.status === "DOWN";
               const isWarning = app.status === "WARNING";
               
@@ -216,12 +230,7 @@ export default function OpdDetailPage() {
                       {/* Tombol Detail */}
                       <button
                         type="button"
-                        onClick={() => setSelectedApp({ 
-                          name: app.name, 
-                          url: app.url, 
-                          status: app.status,
-                          screenshotUrl: app.screenshotUrl || "/screenshots/default.png"
-                        })}
+                        onClick={() => setSelectedApp({ name: app.name, url: app.url, status: app.status })}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition shadow-xs"
                       >
                         <Info className="w-3.5 h-3.5 text-teal-600" />
@@ -289,16 +298,22 @@ export default function OpdDetailPage() {
 
       </div>
 
-      {/* POP-UP MODAL DETAIL (REKAP 7 HARI & SCREENSHOT OTOMATIS) */}
+      {/* POP-UP MODAL DETAIL (REKAP 7 HARI & SINGLE SCREENSHOT) */}
       {selectedApp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+          onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Detail monitoring ${selectedApp.name}`}
+        >
           <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             
             {/* Header Modal */}
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50">
               <div>
                 <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wider bg-teal-100/60 px-2.5 py-0.5 rounded-full border border-teal-200">
-                  Detail Monitoring & Tangkapan Layar
+                  Detail Monitoring 7 Hari Terakhir
                 </span>
                 <h3 className="text-lg font-bold text-slate-900 mt-1">
                   {selectedApp.name}
@@ -306,8 +321,9 @@ export default function OpdDetailPage() {
                 <p className="text-xs text-slate-500 font-mono">{selectedApp.url}</p>
               </div>
               <button
-                onClick={() => setSelectedApp(null)}
+                onClick={closeModal}
                 className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-lg transition"
+                aria-label="Tutup dialog"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -353,43 +369,47 @@ export default function OpdDetailPage() {
                 </div>
               </div>
 
-              {/* 2. Screenshot Otomatis dari Playwright */}
+              {/* 2. Screenshot Aplikasi (1 Gambar Terbaru & Efisien) */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                     <ImageIcon className="w-4 h-4 text-teal-600" />
-                    Tangkapan Layar Realtime (Playwright)
+                    Tangkapan Layar Terbaru (Hari Ke-7)
                   </h4>
                   <span className="text-[10px] text-teal-700 bg-teal-50 px-2 py-0.5 rounded font-mono font-semibold border border-teal-200">
-                    Auto-captured
+                    Auto-overwrite (1 File/App)
                   </span>
                 </div>
 
                 <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
-                  {selectedApp.screenshotUrl ? (
-                    <img 
-                      src={selectedApp.screenshotUrl} 
-                      alt={selectedApp.name} 
-                      className="w-full h-48 object-cover border-b border-slate-200"
-                    />
-                  ) : (
-                    <div className="h-48 bg-slate-200 flex flex-col items-center justify-center text-slate-400 p-4">
-                      <ImageIcon className="w-10 h-10 mb-2 opacity-60" />
-                      <span className="text-xs font-semibold text-slate-600">
-                        Belum ada tangkapan layar otomatis
-                      </span>
+                  <div className="h-48 bg-slate-200 flex flex-col items-center justify-center text-slate-400 p-4 relative group">
+                    <ImageIcon className="w-10 h-10 mb-2 opacity-60" />
+                    <span className="text-xs font-semibold text-slate-600">
+                      latest_screenshot.webp
+                    </span>
+                    <span className="text-[10px] text-slate-400 mt-0.5">
+                      Format: WebP (Kompresi Efisien ~50-80 KB)
+                    </span>
+
+                    <div className="absolute inset-0 bg-teal-900/10 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-semibold">
+                      Klik untuk Memperbesar Gambar
                     </div>
-                  )}
+                  </div>
                   
-                  <div className="p-3 bg-white flex justify-between items-center text-xs">
+                  <div className="p-3 bg-white border-t border-slate-200 flex justify-between items-center text-xs">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-800">{selectedApp.name}</span>
+                      <span className="font-semibold text-slate-800">01 Sep 2026 (Hari Terakhir)</span>
+                      <span className="text-[10px] text-slate-400 font-mono">1080x720.webp</span>
                     </div>
                     <span className="text-emerald-600 font-mono font-bold text-[11px] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      Terverifikasi Sistem
+                      Terverifikasi
                     </span>
                   </div>
                 </div>
+                
+                <p className="text-[11px] text-slate-400 mt-1.5 italic">
+                  *Gambar screenshot lama otomatis ditimpa file baru setiap akhir siklus 7 hari untuk menghemat penggunaan storage server.
+                </p>
               </div>
 
             </div>
@@ -398,7 +418,7 @@ export default function OpdDetailPage() {
             <div className="border-t border-slate-200 px-6 py-3 bg-slate-50 text-right">
               <button
                 type="button"
-                onClick={() => setSelectedApp(null)}
+                onClick={closeModal}
                 className="px-4 py-2 bg-slate-800 text-white text-xs font-semibold rounded-lg hover:bg-slate-700 transition"
               >
                 Tutup

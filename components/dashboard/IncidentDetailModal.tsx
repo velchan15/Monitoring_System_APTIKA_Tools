@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { 
   X, 
   CheckCircle2, 
   Send, 
   Calendar,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Upload
 } from "lucide-react";
 
 import { type IncidentItem, type IncidentStatus } from "@/lib/dashboard-data";
@@ -26,6 +27,17 @@ export function IncidentDetailModal({
   onUpdateStatus,
 }: IncidentDetailModalProps) {
   const [noteInput, setNoteInput] = useState("");
+  const [screenshot, setScreenshot] = useState<string | null>(null);
+
+  // Lock body scroll and handle Escape + click-outside
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handleKey);
+    return () => { document.body.style.overflow = prev; window.removeEventListener("keydown", handleKey); };
+  }, [isOpen, onClose]);
 
   if (!isOpen || !incident) return null;
 
@@ -34,6 +46,14 @@ export function IncidentDetailModal({
     if (!noteInput.trim()) return;
     onUpdateStatus(incident.id, incident.status, noteInput.trim());
     setNoteInput("");
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const imageUrl = URL.createObjectURL(file);
+      setScreenshot(imageUrl);
+    }
   };
 
   const last7DaysData = [
@@ -47,7 +67,12 @@ export function IncidentDetailModal({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      role="dialog"
+      aria-modal="true"
+    >
       <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Header Modal */}
@@ -114,7 +139,7 @@ export function IncidentDetailModal({
             </div>
           </div>
 
-          {/* REKAP 7 HARI & SCREENSHOT OTOMATIS PLAYWRIGHT */}
+          {/* REKAP 7 HARI & SCREENSHOT (DITARO DI BAWAH KRONOLOGI) */}
           <div className="space-y-4 pt-2 border-t border-border">
             <div>
               <h4 className="font-bold text-ink uppercase tracking-wider text-[10px] mb-2.5 flex items-center gap-1.5">
@@ -151,30 +176,31 @@ export function IncidentDetailModal({
               </div>
             </div>
 
-            {/* Bagian Tangkapan Layar Otomatis Playwright */}
+            {/* Bagian Tangkapan Layar / Screenshot */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <h4 className="font-bold text-ink uppercase tracking-wider text-[10px] flex items-center gap-1.5">
                   <ImageIcon className="w-4 h-4 text-brand" />
-                  Tangkapan Layar Realtime (Playwright)
+                  Tangkapan Layar Saat Insiden (Hari Ke-7)
                 </h4>
-                <span className="text-[10px] text-red-700 bg-red-50 px-2 py-0.5 rounded font-mono font-semibold border border-red-200">
-                  Auto-Captured on Failure
-                </span>
+                <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 bg-brand-soft text-brand rounded hover:bg-brand/20 font-semibold transition text-[11px]">
+                  <Upload className="w-3 h-3" />
+                  Upload Bukti
+                  <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                </label>
               </div>
 
               <div className="border border-border rounded-xl overflow-hidden bg-canvas">
-                {incident.screenshotUrl ? (
-                  <img 
-                    src={incident.screenshotUrl} 
-                    alt={incident.appName} 
-                    className="w-full h-48 object-cover border-b border-border"
-                  />
+                {screenshot ? (
+                  <div className="relative p-2 flex justify-center bg-slate-950">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={screenshot} alt="Tangkapan layar insiden yang diunggah" className="max-h-48 rounded object-contain" />
+                  </div>
                 ) : (
                   <div className="h-40 bg-border/40 flex flex-col items-center justify-center text-ink/40 p-4">
                     <ImageIcon className="w-8 h-8 mb-1.5 opacity-50" />
-                    <span className="text-xs font-semibold text-ink/60">Belum ada tangkapan layar otomatis</span>
-                    <span className="text-[10px] text-ink/40 mt-0.5">Diambil otomatis oleh sistem saat error terdeteksi</span>
+                    <span className="text-xs font-semibold text-ink/60">Belum ada tangkapan layar diunggah</span>
+                    <span className="text-[10px] text-ink/40 mt-0.5">Klik tombol &ldquo;Upload Bukti&rdquo; di atas untuk memasukkan gambar error</span>
                   </div>
                 )}
               </div>

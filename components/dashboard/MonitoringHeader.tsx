@@ -8,12 +8,12 @@ import {
   LogOut,
   Menu,
   RefreshCcw,
-  ShieldCheck,
   Users,
 } from "lucide-react";
 
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
+import { mockNotifications } from "@/lib/data/notifications";
 
 interface MonitoringHeaderProps {
   onOpenSidebar: () => void;
@@ -24,23 +24,38 @@ export function MonitoringHeader({ onOpenSidebar, onNavigateTab }: MonitoringHea
   const { user, setLoginModalOpen, logout } = useAuth();
   const [isProfileMenuOpen, setProfileMenuOpen] = useState(false);
   const [isNotifOpen, setNotifOpen] = useState(false);
-  
-  // State untuk mencegah Hydration Error
+
+  // Prevent hydration error - only render date after mount
   const [mounted, setMounted] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
     setMounted(true);
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    return () => clearInterval(timer);
   }, []);
 
-  // Live clock
-  const now = new Date();
+  // Derive unread count from mock data (will be replaced by real data when backend is live)
+  const unreadCount = mockNotifications.filter((n) => !n.isRead).length;
+
+  // Recent unread notifications for the dropdown
+  const recentNotifs = mockNotifications.filter((n) => !n.isRead).slice(0, 3);
+
   const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
   const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-  const dateLabel = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()} · ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")} WIB`;
+  const dateLabel = mounted
+    ? `${days[currentTime.getDay()]}, ${currentTime.getDate()} ${months[currentTime.getMonth()]} ${currentTime.getFullYear()} · ${String(currentTime.getHours()).padStart(2, "0")}:${String(currentTime.getMinutes()).padStart(2, "0")} WIB`
+    : "Memuat...";
+
+  const severityDotColor = (severity: string) => {
+    if (severity === "critical") return "bg-status-offline";
+    if (severity === "warning") return "bg-status-warning";
+    return "bg-brand";
+  };
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 border-b border-border bg-white px-4 shadow-2xs">
-      {/* Left */}
+      {/* Left — hamburger on mobile */}
       <div className="flex min-w-0 items-center gap-2">
         <button
           type="button"
@@ -54,17 +69,18 @@ export function MonitoringHeader({ onOpenSidebar, onNavigateTab }: MonitoringHea
 
       {/* Right toolbar */}
       <div className="flex shrink-0 items-center gap-2">
-        {/* Date badge - Hanya dirender jika komponen sudah mounted di browser */}
+        {/* Date badge */}
         <button
           type="button"
           className="hidden items-center gap-1.5 rounded-lg border border-border bg-canvas px-3 py-1.5 text-xs font-medium text-ink/70 hover:bg-canvas/80 md:flex"
+          aria-label="Tanggal dan waktu"
         >
           <Calendar className="h-3.5 w-3.5 text-brand" />
-          {mounted ? dateLabel : "Memuat..."}
+          {dateLabel}
           <ChevronDown className="h-3 w-3 text-ink/40 ml-0.5" />
         </button>
 
-        {/* Auto-refresh */}
+        {/* Auto-refresh indicator */}
         <div className="hidden items-center gap-1.5 rounded-lg border border-border bg-canvas px-3 py-1.5 text-xs font-medium text-status-online sm:flex">
           <RefreshCcw className="h-3.5 w-3.5" />
           Auto Refresh 30s
@@ -80,47 +96,52 @@ export function MonitoringHeader({ onOpenSidebar, onNavigateTab }: MonitoringHea
             aria-label="Notifikasi"
           >
             <Bell className="h-4 w-4" />
-            <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-status-offline font-mono text-[9px] font-bold text-white">
-              2
-            </span>
+            {unreadCount > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-status-offline font-mono text-[9px] font-bold text-white px-0.5">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
           </button>
 
           {isNotifOpen && (
-            <div className="absolute right-0 top-full mt-2 w-72 rounded-xl border border-border bg-white shadow-xl z-50 animate-fade-in overflow-hidden">
+            <div className="absolute right-0 top-full mt-2 w-80 rounded-xl border border-border bg-white shadow-xl z-50 animate-fade-in overflow-hidden">
               <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
                 <span className="text-xs font-bold text-ink">Notifikasi Terbaru</span>
-                <span className="text-[11px] font-semibold text-brand cursor-pointer hover:underline">
-                  Tandai Dibaca
-                </span>
+                <button
+                  type="button"
+                  onClick={() => { onNavigateTab?.("notifikasi"); setNotifOpen(false); }}
+                  className="text-[11px] font-semibold text-brand cursor-pointer hover:underline"
+                >
+                  Tandai Semua Dibaca
+                </button>
               </div>
               <div className="divide-y divide-border/50">
-                <div
-                  onClick={() => { onNavigateTab?.("incidents"); setNotifOpen(false); }}
-                  className="flex cursor-pointer gap-3 px-4 py-3 hover:bg-canvas/60 transition-colors"
-                >
-                  <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-status-offline" />
-                  <div>
-                    <p className="text-xs font-semibold text-ink">503 Service Unavailable — Disdukcapil</p>
-                    <p className="text-[11px] text-ink/60 mt-0.5">SIPD Kependudukan gagal handshake database.</p>
-                    <span className="text-[10px] text-ink/40 font-mono">15 menit lalu</span>
+                {recentNotifs.length === 0 ? (
+                  <div className="px-4 py-5 text-center text-xs text-ink/50">
+                    Tidak ada notifikasi baru
                   </div>
-                </div>
-                <div
-                  onClick={() => { onNavigateTab?.("incidents"); setNotifOpen(false); }}
-                  className="flex cursor-pointer gap-3 px-4 py-3 hover:bg-canvas/60 transition-colors"
-                >
-                  <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-status-warning" />
-                  <div>
-                    <p className="text-xs font-semibold text-ink">High Latency — SIMPUS Jabar Online</p>
-                    <p className="text-[11px] text-ink/60 mt-0.5">Waktu respons query melonjak &gt; 3800ms.</p>
-                    <span className="text-[10px] text-ink/40 font-mono">45 menit lalu</span>
-                  </div>
-                </div>
+                ) : (
+                  recentNotifs.map((n) => (
+                    <button
+                      key={n.id}
+                      type="button"
+                      onClick={() => { onNavigateTab?.(n.targetUrl ?? "notifikasi"); setNotifOpen(false); }}
+                      className="w-full flex cursor-pointer gap-3 px-4 py-3 hover:bg-canvas/60 transition-colors text-left"
+                    >
+                      <div className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", severityDotColor(n.severity))} />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-ink truncate">{n.title}</p>
+                        <p className="text-[11px] text-ink/60 mt-0.5 line-clamp-1">{n.message}</p>
+                        <span className="text-[10px] text-ink/40 font-mono">{n.timestamp}</span>
+                      </div>
+                    </button>
+                  ))
+                )}
               </div>
               <div className="border-t border-border px-4 py-2.5 text-center">
                 <button
                   type="button"
-                  onClick={() => { onNavigateTab?.("incidents"); setNotifOpen(false); }}
+                  onClick={() => { onNavigateTab?.("notifikasi"); setNotifOpen(false); }}
                   className="text-xs font-semibold text-brand hover:underline"
                 >
                   Lihat Semua Notifikasi →
