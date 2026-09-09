@@ -147,7 +147,6 @@ export interface IncidentItem {
   assignedTo: string;
   impact: string;
   httpStatus?: number;
-  screenshotUrl?: string; // Atribut jalur tangkapan layar Playwright otomatis ke subfolder OPD
   timeline: { time: string; note: string }[];
 }
 
@@ -169,7 +168,6 @@ export const initialIncidents: IncidentItem[] = [
     assignedTo: "Tim Infrastruktur APTIKA & Admin Disdukcapil",
     impact: "Layanan verifikasi NIK publik dari aplikasi eksternal tertunda.",
     httpStatus: 503,
-    screenshotUrl: "/screenshots/disdukcapil/inc-01.webp",
     timeline: [
       { time: "07:15 WIB", note: "Sistem automated ping mendeteksi response 503 berturut-turut selama 3 kali." },
       { time: "07:22 WIB", note: "Alert otomatis terkirim ke kanal Telegram Command Center APTIKA." },
@@ -193,7 +191,6 @@ export const initialIncidents: IncidentItem[] = [
     assignedTo: "Budi Santoso (Data Engineer Dinkes)",
     impact: "Puskesmas di 8 kabupaten mengalami kelambatan load data pasien.",
     httpStatus: 200,
-    screenshotUrl: "/screenshots/dinkes/inc-02.webp",
     timeline: [
       { time: "06:40 WIB", note: "Monitoring latency mendeteksi avg latency 3840ms." },
       { time: "07:05 WIB", note: "Status dinaikkan menjadi Investigasi oleh Tim Pusdatin Dinkes." },
@@ -216,7 +213,6 @@ export const initialIncidents: IncidentItem[] = [
     rootCause: "Kegagalan otorisasi HTTP-01 challenge karena DNS hook API token expired.",
     assignedTo: "Rian Prasetya (DevSecOps APTIKA)",
     impact: "Jika tidak diperbarui sebelum 2 September 2026, browser publik akan menampilkan warning keamanan.",
-    screenshotUrl: "/screenshots/diskominfo/inc-03.webp",
     timeline: [
       { time: "28 Agu 14:00", note: "Automated SSL Checker mendeteksi sisa masa aktif < 5 hari." },
       { time: "28 Agu 16:30", note: "Tiket diserahkan ke Tim Jaringan & Keamanan Informasi." },
@@ -238,7 +234,6 @@ export const initialIncidents: IncidentItem[] = [
     rootCause: "Log rotasi cron job tertunda pada salah satu container reporting.",
     assignedTo: "Tim Operasional Bapenda",
     impact: "Tidak ada downtime langsung, pencegahan sebelum kapasitas penuh.",
-    screenshotUrl: "/screenshots/bapenda/inc-04.webp",
     timeline: [
       { time: "28 Agu 09:20", note: "Trigger alert disk storage 88%." },
       { time: "28 Agu 09:45", note: "Proses log archival ke cold storage S3 lokal selesai." },
@@ -262,7 +257,6 @@ export const initialIncidents: IncidentItem[] = [
     assignedTo: "Tim Server BPKAD",
     impact: "3 OPD gagal menyimpan draf anggaran dan harus upload ulang.",
     httpStatus: 504,
-    screenshotUrl: "/screenshots/bpkad/inc-05.webp",
     timeline: [
       { time: "27 Agu 11:30", note: "Laporan error 504 dari Bappeda & Disdik." },
       { time: "27 Agu 12:15", note: "Timeout dinaikkan menjadi 300s dan chunk upload diaktifkan." },
@@ -751,7 +745,6 @@ export function getApplicationsByOpd(opdCode: string) {
       status: matchService ? (matchService.status === "online" ? "UP" : matchService.status === "offline" ? "DOWN" : "WARNING") : "UP",
       uptime: matchService ? matchService.uptime30Days : opd.avgUptime,
       latency: matchService ? matchService.currentLatencyMs : opd.avgLatencyMs,
-      screenshotUrl: `/screenshots/${opd.code.toLowerCase()}/${opd.code.toLowerCase()}-app-${index + 1}.webp`,
     };
   });
 }
