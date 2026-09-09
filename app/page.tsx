@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Activity } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Activity, Mail, Lock, User, Loader2, UserPlus, ArrowLeft } from "lucide-react";
 
 import { LoginModal } from "@/components/auth/LoginModal";
-import { DashboardIncidentList, IncidentTable } from "@/components/dashboard/IncidentTable";
+import { DashboardIncidentList } from "@/components/dashboard/IncidentTable";
 import { MonitoringHeader } from "@/components/dashboard/MonitoringHeader";
 import { MonitoringSidebar, type NavTabId } from "@/components/dashboard/MonitoringSidebar";
 import { DashboardOpdSummary, OpdSummaryGrid } from "@/components/dashboard/OpdSummaryGrid";
@@ -15,7 +15,6 @@ import { StatusDonutChart } from "@/components/dashboard/StatusDonutChart";
 import { StatusTrendChart } from "@/components/dashboard/StatusTrendChart";
 import { TopUptimeWidget, UptimeList } from "@/components/dashboard/UptimeList";
 
-// New feature pages
 import { IncidentManagementView } from "@/components/incidents/IncidentManagementView";
 import { ResponseTimeView } from "@/components/responsetime/ResponseTimeView";
 import { UptimeReportView } from "@/components/reports/UptimeReportView";
@@ -30,7 +29,6 @@ import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { dashboardStatusMetrics } from "@/lib/dashboard-data";
 import { mockIncidents } from "@/lib/data/incidents";
 
-// ---- Live alert badge ----
 function LiveAlertBadge() {
   const onlineMetric = dashboardStatusMetrics.find((m) => m.key === "online");
   const totalMetric = dashboardStatusMetrics.find((m) => m.key === "total");
@@ -43,7 +41,6 @@ function LiveAlertBadge() {
   );
 }
 
-// ---- Greeting ----
 function DashboardGreeting({ name }: { name?: string }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -60,7 +57,6 @@ function DashboardGreeting({ name }: { name?: string }) {
   );
 }
 
-// ---- Page header helper ----
 interface PageHeaderProps {
   title: string;
   subtitle: string;
@@ -83,13 +79,11 @@ function PageHeader({ title, subtitle, icon: Icon, tag }: PageHeaderProps) {
   );
 }
 
-// ---- Main dashboard content ----
 function DashboardContent() {
   const { user } = useAuth();
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<NavTabId>("dashboard");
 
-  // Derive active incident count for sidebar badge (spec 6.1)
   const activeIncidentCount = mockIncidents.filter(
     (i) => i.status === "open" || i.status === "investigating"
   ).length;
@@ -101,7 +95,6 @@ function DashboardContent() {
 
   return (
     <div className="min-h-dvh bg-canvas">
-      {/* Sidebar */}
       <MonitoringSidebar
         isOpen={isSidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -110,28 +103,21 @@ function DashboardContent() {
         activeIncidentCount={activeIncidentCount}
       />
 
-      {/* Main layout: sidebar is w-64, so push main content by pl-64 on desktop */}
       <div className="lg:pl-64 flex flex-col min-h-dvh">
-        {/* Sticky Header */}
         <MonitoringHeader
           onOpenSidebar={() => setSidebarOpen(true)}
           onNavigateTab={handleNav}
         />
 
-        {/* Page Content */}
         <main className="flex-1 p-4 sm:p-5 space-y-4">
-
-          {/* ===================== DASHBOARD ===================== */}
           {activeTab === "dashboard" && (
             <>
               <DashboardGreeting name={user?.name} />
-
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 {dashboardStatusMetrics.map((metric) => (
                   <StatusCard key={metric.key} metric={metric} />
                 ))}
               </div>
-
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
                 <div className="xl:col-span-3" style={{ minHeight: 320 }}>
                   <StatusTrendChart title="Grafik Status Aplikasi" />
@@ -140,7 +126,6 @@ function DashboardContent() {
                   <StatusDonutChart />
                 </div>
               </div>
-
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
                 <div className="xl:col-span-3">
                   <DashboardIncidentList limit={5} />
@@ -149,186 +134,375 @@ function DashboardContent() {
                   <TopUptimeWidget limit={6} onViewAll={() => setActiveTab("uptime")} />
                 </div>
               </div>
-
               <DashboardOpdSummary onViewAll={() => setActiveTab("opd")} />
             </>
           )}
 
-          {/* ===================== UPTIME / APPLICATION LIST ===================== */}
           {activeTab === "uptime" && (
             <div className="space-y-4">
-              <PageHeader
-                title="Daftar Aplikasi & Uptime"
-                subtitle="Pemantauan ketersediaan 30-hari, ping response time, dan validitas SSL per layanan"
-                icon={Activity}
-                tag="Status Layanan"
-              />
+              <PageHeader title="Daftar Aplikasi & Uptime" subtitle="Pemantauan ketersediaan 30-hari, ping response time, dan validitas SSL per layanan" icon={Activity} tag="Status Layanan" />
               <UptimeList />
             </div>
           )}
 
-          {/* ===================== INCIDENT MANAGEMENT ===================== */}
           {activeTab === "incidents" && (
             <div className="space-y-4">
-              <PageHeader
-                title="Manajemen Insiden & Gangguan"
-                subtitle="Lacak, investigasi, dan selesaikan tiket gangguan layanan per Perangkat Daerah"
-                tag="Tiket Insiden"
-              />
+              <PageHeader title="Manajemen Insiden & Gangguan" subtitle="Lacak, investigasi, dan selesaikan tiket gangguan layanan per Perangkat Daerah" tag="Tiket Insiden" />
               <IncidentManagementView />
             </div>
           )}
 
-          {/* ===================== OPD DASHBOARD ===================== */}
           {activeTab === "opd" && (
             <div className="space-y-4">
-              <PageHeader
-                title="Dashboard Perangkat Daerah (OPD)"
-                subtitle="Pemantauan kinerja sistem per instansi Pemerintah Provinsi Jawa Barat"
-                tag="Per OPD"
-              />
+              <PageHeader title="Dashboard Perangkat Daerah (OPD)" subtitle="Pemantauan kinerja sistem per instansi Pemerintah Provinsi Jawa Barat" tag="Per OPD" />
               <OpdSummaryGrid />
             </div>
           )}
 
-          {/* ===================== SSL CERTIFICATE ===================== */}
           {activeTab === "ssl" && (
             <div className="space-y-4">
-              <PageHeader
-                title="Pemantauan Sertifikat SSL/TLS"
-                subtitle="Audit keamanan dan peringatan dini masa berlaku sertifikat HTTPS seluruh domain"
-                tag="Keamanan SSL"
-              />
+              <PageHeader title="Pemantauan Sertifikat SSL/TLS" subtitle="Audit keamanan dan peringatan dini masa berlaku sertifikat HTTPS seluruh domain" tag="Keamanan SSL" />
               <SslMonitorView />
             </div>
           )}
 
-          {/* ===================== RESPONSE TIME ===================== */}
           {activeTab === "response_time" && (
             <div className="space-y-4">
-              <PageHeader
-                title="Waktu Respons Aplikasi (Response Time)"
-                subtitle="Analisis latensi dan performa response time layanan digital per OPD secara periodik"
-                tag="Analisis Latensi"
-              />
+              <PageHeader title="Waktu Respons Aplikasi (Response Time)" subtitle="Analisis latensi dan performa response time layanan digital per OPD secara periodik" tag="Analisis Latensi" />
               <ResponseTimeView />
             </div>
           )}
 
-          {/* ===================== UPTIME REPORT ===================== */}
           {activeTab === "laporan_uptime" && (
             <div className="space-y-4">
-              <PageHeader
-                title="Laporan Uptime Layanan"
-                subtitle="Rekap uptime, downtime kumulatif, dan kepatuhan SLA per aplikasi dan Perangkat Daerah"
-                tag="Laporan Uptime"
-              />
+              <PageHeader title="Laporan Uptime Layanan" subtitle="Rekap uptime, downtime kumulatif, dan kepatuhan SLA per aplikasi dan Perangkat Daerah" tag="Laporan Uptime" />
               <UptimeReportView />
             </div>
           )}
 
-          {/* ===================== DISRUPTION REPORT ===================== */}
           {activeTab === "laporan_gangguan" && (
             <div className="space-y-4">
-              <PageHeader
-                title="Laporan Gangguan & Disruption"
-                subtitle="Rekap historis insiden, analisis akar masalah, dan tren gangguan per periode"
-                tag="Laporan Gangguan"
-              />
+              <PageHeader title="Laporan Gangguan & Disruption" subtitle="Rekap historis insiden, analisis akar masalah, dan tren gangguan per periode" tag="Laporan Gangguan" />
               <DisruptionReportView />
             </div>
           )}
 
-          {/* ===================== EXPORT REPORT ===================== */}
           {activeTab === "ekspor" && (
             <div className="space-y-4">
-              <PageHeader
-                title="Ekspor & Unduh Laporan"
-                subtitle="Generate dan unduh laporan uptime, gangguan, atau SSL dalam format PDF, Excel, atau CSV"
-                tag="Ekspor Data"
-              />
+              <PageHeader title="Ekspor & Unduh Laporan" subtitle="Generate dan unduh laporan uptime, gangguan, atau SSL dalam format PDF, Excel, atau CSV" tag="Ekspor Data" />
               <ExportReportView />
             </div>
           )}
 
-          {/* ===================== NOTIFICATIONS ===================== */}
           {activeTab === "notifikasi" && (
             <div className="space-y-4">
-              <PageHeader
-                title="Pusat Notifikasi"
-                subtitle="Kelola notifikasi insiden, pengaturan kanal pengiriman, dan daftar penerima per OPD"
-                tag="Notifikasi"
-              />
+              <PageHeader title="Pusat Notifikasi" subtitle="Kelola notifikasi insiden, pengaturan kanal pengiriman, dan daftar penerima per OPD" tag="Notifikasi" />
               <NotificationsView />
             </div>
           )}
 
-          {/* ===================== USER & ROLE ===================== */}
           {activeTab === "user_role" && (
             <div className="space-y-4">
-              <PageHeader
-                title="Manajemen Pengguna & Role"
-                subtitle="Kelola akun pengguna, hak akses berbasis role (RBAC), dan lingkup akses per OPD"
-                tag="Akses & Keamanan"
-              />
+              <PageHeader title="Manajemen Pengguna & Role" subtitle="Kelola akun pengguna, hak akses berbasis role (RBAC), dan lingkup akses per OPD" tag="Akses & Keamanan" />
               <UserRoleView />
             </div>
           )}
 
-          {/* ===================== INTEGRATIONS ===================== */}
           {activeTab === "integrasi" && (
             <div className="space-y-4">
-              <PageHeader
-                title="Konfigurasi Integrasi Sistem"
-                subtitle="Kelola koneksi ke Katalog Aplikasi, Telegram Bot, SMTP Email, dan webhook eksternal"
-                tag="Integrasi"
-              />
+              <PageHeader title="Konfigurasi Integrasi Sistem" subtitle="Kelola koneksi ke Katalog Aplikasi, Telegram Bot, SMTP Email, dan webhook eksternal" tag="Integrasi" />
               <IntegrationsView />
             </div>
           )}
 
-          {/* ===================== AUDIT TRAIL ===================== */}
           {activeTab === "audit_trail" && (
             <div className="space-y-4">
-              <PageHeader
-                title="Audit Trail & Log Aktivitas"
-                subtitle="Rekam jejak aktivitas pengguna, perubahan konfigurasi, dan aksi kritis sistem"
-                tag="Keamanan & Audit"
-              />
+              <PageHeader title="Audit Trail & Log Aktivitas" subtitle="Rekam jejak aktivitas pengguna, perubahan konfigurasi, dan aksi kritis sistem" tag="Keamanan & Audit" />
               <AuditTrailView />
             </div>
           )}
 
-          {/* ===================== LEGACY SETTINGS (SettingsView) ===================== */}
           {activeTab === "settings" && (
             <div className="space-y-4">
-              <PageHeader
-                title="Pengaturan Sistem & Akun"
-                subtitle="Konfigurasi robot monitoring, webhook notifikasi, dan manajemen akses pengguna"
-                tag="Pengaturan"
-              />
+              <PageHeader title="Pengaturan Sistem & Akun" subtitle="Konfigurasi robot monitoring, webhook notifikasi, dan manajemen akses pengguna" tag="Pengaturan" />
               <SettingsView />
             </div>
           )}
-
         </main>
 
-        {/* Footer */}
         <footer className="border-t border-border px-5 py-3 text-center text-[11px] text-ink/35">
           © 2026 Dinas Komunikasi dan Informatika Provinsi Jawa Barat · Monitoring System APTIKA v2.0
         </footer>
       </div>
-
-      {/* Global Auth Modal */}
       <LoginModal />
     </div>
   );
 }
 
-export default function DashboardPage() {
+// **Gatekeeper Utama dengan Mode Login & Register**
+function RootAuthGate() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoadingCheck, setIsLoadingCheck] = useState(true);
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
+
+  // Form states
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
+  
+  const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      setIsAuthenticated(true);
+    }
+    setIsLoadingCheck(false);
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccessMsg("");
+    setIsLoading(true);
+
+    try {
+      const res = await fetch("http://localhost:3001/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Email atau password salah.");
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      setIsAuthenticated(true);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccessMsg("");
+    setIsLoading(true);
+
+    try {
+      const res = await fetch("http://localhost:3001/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          email,
+          username: username || email.split("@")[0],
+          password,
+          role: "operator",
+          roleLabel: "Operator",
+          isActive: true,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Gagal mendaftarkan akun.");
+
+      setSuccessMsg("Pendaftaran berhasil! Silakan masuk dengan akun baru Anda.");
+      setIsRegisterMode(false);
+      setPassword("");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoadingCheck) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-slate-900 text-white">
+        <Loader2 className="h-6 w-6 animate-spin text-brand" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center bg-slate-950 p-4">
+        <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl space-y-6">
+          <div className="text-center space-y-2">
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand font-mono text-base font-bold text-white shadow-md">
+              SM
+            </span>
+            <h1 className="text-lg font-bold text-slate-900 tracking-tight">
+              {isRegisterMode ? "Pendaftaran Akun Baru" : "Portal Akses Pengguna"}
+            </h1>
+            <p className="text-xs text-slate-500">Monitoring System APTIKA Jabar</p>
+          </div>
+
+          {error && (
+            <div className="rounded-lg bg-red-50 p-3 text-xs text-red-600 border border-red-200">
+              {error}
+            </div>
+          )}
+
+          {successMsg && (
+            <div className="rounded-lg bg-emerald-50 p-3 text-xs text-emerald-700 border border-emerald-200">
+              {successMsg}
+            </div>
+          )}
+
+          {!isRegisterMode ? (
+            // FORM LOGIN
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Alamat Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <input
+                    type="email"
+                    required
+                    placeholder="admin@diskominfo.go.id"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-3 text-xs text-slate-900 focus:border-brand focus:bg-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-3 text-xs text-slate-900 focus:border-brand focus:bg-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full rounded-xl bg-brand py-3 text-xs font-bold text-white shadow-md hover:bg-brand/90 transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+              >
+                {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                Masuk Sistem
+              </button>
+
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setIsRegisterMode(true); setError(""); setSuccessMsg(""); }}
+                  className="text-xs font-semibold text-brand hover:underline"
+                >
+                  Belum punya akun? Daftar di sini →
+                </button>
+              </div>
+            </form>
+          ) : (
+            // FORM REGISTER
+            <form onSubmit={handleRegister} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Lengkap</label>
+                <div className="relative">
+                  <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nama Pengguna"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2 pl-10 pr-3 text-xs text-slate-900 focus:border-brand focus:bg-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Username</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="username_anda"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2 px-3 text-xs text-slate-900 focus:border-brand focus:bg-white focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Alamat Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <input
+                    type="email"
+                    required
+                    placeholder="nama@jabarprov.go.id"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2 pl-10 pr-3 text-xs text-slate-900 focus:border-brand focus:bg-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2 pl-10 pr-3 text-xs text-slate-900 focus:border-brand focus:bg-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full mt-2 rounded-xl bg-brand py-2.5 text-xs font-bold text-white shadow-md hover:bg-brand/90 transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+              >
+                {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                Daftarkan Akun
+              </button>
+
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setIsRegisterMode(false); setError(""); setSuccessMsg(""); }}
+                  className="text-xs font-semibold text-slate-600 hover:text-brand flex items-center justify-center gap-1 mx-auto"
+                >
+                  <ArrowLeft className="h-3 w-3" /> Kembali ke Halaman Login
+                </button>
+              </div>
+            </form>
+          )}
+
+          <div className="border-t border-slate-100 pt-4 text-center text-[11px] text-slate-400">
+            Diskominfo Provinsi Jawa Barat · Single Sign-On Ready
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <AuthProvider>
       <DashboardContent />
     </AuthProvider>
   );
 }
+
+export default RootAuthGate;

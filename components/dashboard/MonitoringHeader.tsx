@@ -206,7 +206,12 @@ export function MonitoringHeader({ onOpenSidebar, onNavigateTab }: MonitoringHea
                 </button>
                 <button
                   type="button"
-                  onClick={() => { logout(); setProfileMenuOpen(false); }}
+                  onClick={() => {
+                    localStorage.removeItem("token");
+                    localStorage.removeItem("user");
+                    logout();
+                    window.location.reload();
+                  }}
                   className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50"
                 >
                   <LogOut className="h-4 w-4" />

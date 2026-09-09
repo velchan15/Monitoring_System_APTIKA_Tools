@@ -10,23 +10,50 @@ import {
   UserCheck,
   Users,
   X,
+  Loader2,
 } from "lucide-react";
 
 import { PRESET_ACCOUNTS, useAuth, type UserRole } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 
 export function LoginModal() {
-  const { isLoginModalOpen, setLoginModalOpen, loginAsPreset, login, user } = useAuth();
+  const { isLoginModalOpen, setLoginModalOpen, loginAsPreset } = useAuth();
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<UserRole>("super_admin");
+  const [password, setPassword] = useState(""); // <-- Tambah state password
+  const [error, setError] = useState("");       // <-- Tambah state error
+  const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"preset" | "custom">("preset");
 
   if (!isLoginModalOpen) return null;
 
-  const handleCustomSubmit = (e: React.FormEvent) => {
+  // Hubungkan ke backend Express
+  const handleCustomSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
-    login(email, role);
+    setError("");
+    if (!email.trim() || !password.trim()) return;
+
+    setIsLoading(true);
+    try {
+      const res = await fetch("http://localhost:3001/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Email atau password salah.");
+
+      // Simpan token ke localStorage
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      setLoginModalOpen(false);
+      window.location.reload(); // Muat ulang agar UI mengenali sesi login
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -96,55 +123,45 @@ export function LoginModal() {
               </p>
 
               <div className="space-y-2">
-                {PRESET_ACCOUNTS.map((preset) => {
-                  const isCurrent = user?.id === preset.id;
-
-                  return (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => loginAsPreset(preset.id)}
-                      className={cn(
-                        "flex w-full items-center justify-between rounded-xl border p-3 text-left transition-all",
-                        isCurrent
-                          ? "border-brand bg-brand-soft/40 shadow-sm ring-1 ring-brand"
-                          : "border-border bg-white hover:border-brand/40 hover:bg-canvas/50"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={cn(
-                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-mono text-xs font-bold",
-                            preset.avatarBg
-                          )}
-                        >
-                          {preset.initials}
+                {PRESET_ACCOUNTS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => {
+                      // Jika ingin langsung lempar ke form manual atau sesuaikan email preset ke state
+                      setEmail(preset.email);
+                      setPassword("admin123"); // Password default hasil seed
+                      setActiveTab("custom");
+                    }}
+                    className="flex w-full items-center justify-between rounded-xl border border-border p-3 text-left transition-all bg-white hover:border-brand/40 hover:bg-canvas/50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-mono text-xs font-bold", preset.avatarBg)}>
+                        {preset.initials}
+                      </span>
+                      <div>
+                        <p className="text-xs font-bold text-ink">{preset.name}</p>
+                        <p className="text-[11px] text-ink/50">{preset.email}</p>
+                        <span className="mt-0.5 inline-block rounded bg-canvas px-1.5 py-0.2 text-[10px] font-semibold text-ink/70 border border-border">
+                          {preset.roleLabel}
                         </span>
-                        <div>
-                          <p className="text-xs font-bold text-ink">{preset.name}</p>
-                          <p className="text-[11px] text-ink/50">{preset.email}</p>
-                          <span className="mt-0.5 inline-block rounded bg-canvas px-1.5 py-0.2 text-[10px] font-semibold text-ink/70 border border-border">
-                            {preset.roleLabel}
-                          </span>
-                        </div>
                       </div>
-
-                      {isCurrent ? (
-                        <span className="rounded-full bg-brand px-2 py-0.5 text-[10px] font-bold text-white">
-                          Aktif
-                        </span>
-                      ) : (
-                        <span className="text-xs font-semibold text-brand hover:underline">
-                          Pilih →
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+                    </div>
+                    <span className="text-xs font-semibold text-brand hover:underline">
+                      Pilih →
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
           ) : (
             <form onSubmit={handleCustomSubmit} className="space-y-4">
+              {error && (
+                <div className="rounded-lg bg-red-50 p-3 text-xs text-red-600 border border-red-200">
+                  {error}
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-ink">Alamat Email:</label>
                 <div className="relative mt-1">
@@ -152,7 +169,7 @@ export function LoginModal() {
                   <input
                     type="email"
                     required
-                    placeholder="nama@jabarprov.go.id"
+                    placeholder="admin@diskominfo.go.id"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full rounded-lg border border-border bg-white py-2 pl-9 pr-3 text-xs text-ink focus:border-brand focus:outline-none"
@@ -160,23 +177,28 @@ export function LoginModal() {
                 </div>
               </div>
 
+              {/* Tambahan Input Password */}
               <div>
-                <label className="block text-xs font-semibold text-ink">Pilih Tingkat Akses:</label>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as UserRole)}
-                  className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-xs font-medium text-ink focus:border-brand focus:outline-none"
-                >
-                  <option value="super_admin">Super Admin APTIKA (Akses Penuh)</option>
-                  <option value="admin_opd">Admin Perangkat Daerah (OPD)</option>
-                  <option value="operator">Operator / Viewer (Read Only)</option>
-                </select>
+                <label className="block text-xs font-semibold text-ink">Password:</label>
+                <div className="relative mt-1">
+                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-ink/40" />
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-white py-2 pl-9 pr-3 text-xs text-ink focus:border-brand focus:outline-none"
+                  />
+                </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full rounded-lg bg-brand py-2 text-xs font-bold text-white shadow-sm hover:bg-brand/90 transition-colors"
+                disabled={isLoading}
+                className="w-full rounded-lg bg-brand py-2 text-xs font-bold text-white shadow-sm hover:bg-brand/90 transition-colors flex items-center justify-center gap-2"
               >
+                {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                 Masuk Sistem
               </button>
             </form>

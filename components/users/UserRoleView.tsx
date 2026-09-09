@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Users, Search, Plus, Edit2, UserX, UserCheck, Shield,
   ChevronDown, X, Loader2, CheckCircle2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockUsers, mockRoles, saveUser } from "@/lib/data/users";
+import { getUsers, getRoles, saveUser } from "@/lib/data/users";
 import type { UserAccount, RoleDefinition } from "@/lib/types/user";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { initialOpdSummaries } from "@/lib/dashboard-data";
@@ -105,7 +105,6 @@ function UserFormModal({ editingUser, onClose, onSave }: UserFormModalProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
-          {/* Name */}
           <div>
             <label className="block font-bold text-ink/60 uppercase tracking-wider text-[10px] mb-1.5">Nama Lengkap *</label>
             <input
@@ -118,7 +117,6 @@ function UserFormModal({ editingUser, onClose, onSave }: UserFormModalProps) {
             {errors.name && <p className="text-red-500 text-[10px] mt-1">{errors.name}</p>}
           </div>
 
-          {/* Email */}
           <div>
             <label className="block font-bold text-ink/60 uppercase tracking-wider text-[10px] mb-1.5">Email *</label>
             <input
@@ -131,7 +129,6 @@ function UserFormModal({ editingUser, onClose, onSave }: UserFormModalProps) {
             {errors.email && <p className="text-red-500 text-[10px] mt-1">{errors.email}</p>}
           </div>
 
-          {/* Username */}
           <div>
             <label className="block font-bold text-ink/60 uppercase tracking-wider text-[10px] mb-1.5">Username *</label>
             <input
@@ -144,7 +141,6 @@ function UserFormModal({ editingUser, onClose, onSave }: UserFormModalProps) {
             {errors.username && <p className="text-red-500 text-[10px] mt-1">{errors.username}</p>}
           </div>
 
-          {/* Role */}
           <div>
             <label className="block font-bold text-ink/60 uppercase tracking-wider text-[10px] mb-1.5">Role / Hak Akses</label>
             <div className="relative">
@@ -163,7 +159,6 @@ function UserFormModal({ editingUser, onClose, onSave }: UserFormModalProps) {
             </div>
           </div>
 
-          {/* OPD (only for admin_opd/executive) */}
           {(form.role === "admin_opd" || form.role === "executive") && (
             <div>
               <label className="block font-bold text-ink/60 uppercase tracking-wider text-[10px] mb-1.5">Perangkat Daerah (OPD)</label>
@@ -185,7 +180,6 @@ function UserFormModal({ editingUser, onClose, onSave }: UserFormModalProps) {
             </div>
           )}
 
-          {/* Active Toggle */}
           <div className="flex items-center justify-between pt-1">
             <label className="font-bold text-ink/60 uppercase tracking-wider text-[10px]">Status Pengguna</label>
             <button
@@ -242,13 +236,19 @@ function RoleCard({ role }: { role: RoleDefinition }) {
 
 export function UserRoleView() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("pengguna");
-  const [users, setUsers] = useState<UserAccount[]>(mockUsers);
+  const [users, setUsers] = useState<UserAccount[]>([]);
+  const [roles, setRoles] = useState<RoleDefinition[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [formModal, setFormModal] = useState<{ open: boolean; user: UserAccount | null }>({ open: false, user: null });
 
+  useEffect(() => {
+    getUsers().then((data) => setUsers(data || []));
+    getRoles().then((data) => setRoles(data || []));
+  }, []);
+
   const filtered = useMemo(() => {
-    let result = users;
+    let result = users || [];
     if (roleFilter !== "all") result = result.filter((u) => u.role === roleFilter);
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -259,11 +259,17 @@ export function UserRoleView() {
 
   const handleSave = async (data: UserFormData) => {
     await saveUser({ ...data, role: data.role as import("@/lib/types/user").UserRoleKey });
-    setUsers([...mockUsers]);
+    const refreshed = await getUsers();
+    setUsers(refreshed || []);
   };
 
-  const handleToggleActive = (id: string) => {
-    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, isActive: !u.isActive } : u));
+  const handleToggleActive = async (id: string) => {
+    const target = users.find((u) => u.id === id);
+    if (target) {
+      await saveUser({ id, isActive: !target.isActive });
+      const refreshed = await getUsers();
+      setUsers(refreshed || []);
+    }
   };
 
   const TABS = [
@@ -273,7 +279,6 @@ export function UserRoleView() {
 
   return (
     <div className="space-y-4">
-      {/* Tabs */}
       <div className="flex rounded-lg border border-border bg-canvas p-0.5 w-fit">
         {TABS.map((tab) => (
           <button
@@ -292,7 +297,6 @@ export function UserRoleView() {
         ))}
       </div>
 
-      {/* PENGGUNA TAB */}
       {activeTab === "pengguna" && (
         <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
           <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
@@ -389,10 +393,9 @@ export function UserRoleView() {
         </div>
       )}
 
-      {/* ROLE TAB */}
       {activeTab === "role" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {mockRoles.map((role) => (
+          {roles.map((role) => (
             <RoleCard key={role.key} role={role} />
           ))}
         </div>

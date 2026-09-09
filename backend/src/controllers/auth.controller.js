@@ -1,62 +1,85 @@
-const prisma = require('../db/prisma');
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-
+    
+    // Cari user beserta relasi role dan department
     const user = await prisma.user.findUnique({
       where: { email },
-      include: { role: true, department: true }
+      include: {
+        role: true,
+        department: true
+      }
     });
-
-    if (!user) {
-      return res.status(401).json({ success: false, message: 'Email atau password salah.' });
+    
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ message: 'Email atau password salah' });
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({ success: false, message: 'Email atau password salah.' });
-    }
-
+    // Payload token mencakup ID, email, nama role, dan departmentId
     const token = jwt.sign(
-      {
-        id: user.id,
-        email: user.email,
-        roleId: user.roleId,
-        departmentId: user.departmentId
+      { 
+        id: user.id, 
+        email: user.email, 
+        role: user.role.name,
+        departmentId: user.departmentId 
       },
-      process.env.JWT_SECRET || 'secret_key_default',
+      process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );
 
-    // Catat ke Audit Log
-    await prisma.auditLog.create({
-      data: {
-        userId: user.id,
-        action: 'USER_LOGIN',
-        details: `User ${user.email} berhasil login.`
-      }
-    });
-
-    res.json({
-      success: true,
-      message: 'Login berhasil.',
-      data: {
-        token,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role.name,
-          department: user.department ? user.department.name : null
-        }
+    return res.status(200).json({
+      message: 'Login berhasil',
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role.name,
+        department: user.department ? user.department.name : null
       }
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Terjadi kesalahan server.', error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
-module.exports = { login };
+const register = async (req, res) => {
+  try {
+    const { name, email, password, roleId, departmentId } = req.body;
+    
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newUser = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        roleId,
+        departmentId: departmentId || null
+      },
+      include: {
+        role: true,
+        department: true
+      }
+    });
+
+    return res.status(201).json({
+      message: 'Registrasi user berhasil',
+      user: {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role.name
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+module.exports = { login, register };
