@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SidebarBadge, type SidebarBadgeVariant } from "@/components/ui/SidebarBadge";
+import { useAuth } from "@/lib/auth-context";
 
 export type NavTabId =
   | "dashboard"
@@ -66,6 +67,8 @@ export function MonitoringSidebar({
   activeIncidentCount = 2,
   unreadNotifCount = 0,
 }: MonitoringSidebarProps) {
+  const { user, isSuperAdmin } = useAuth();
+
   const navGroups: NavGroup[] = [
     {
       title: "MONITORING UTAMA",
@@ -107,16 +110,19 @@ export function MonitoringSidebar({
           badge: unreadNotifCount > 0 ? String(unreadNotifCount) : undefined,
           badgeVariant: "red",
         },
-        { id: "user_role", name: "User & Role", icon: Users },
-        { id: "integrasi", name: "Integrasi", icon: Share2 },
-        { id: "audit_trail", name: "Audit Trail", icon: History },
+        ...(isSuperAdmin
+          ? [
+              { id: "user_role" as NavTabId, name: "User & Role", icon: Users },
+              { id: "integrasi" as NavTabId, name: "Integrasi", icon: Share2 },
+              { id: "audit_trail" as NavTabId, name: "Audit Trail", icon: History },
+            ]
+          : []),
       ],
     },
   ];
 
   return (
     <>
-      {/* Overlay Mobile */}
       {isOpen && (
         <div
           className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs lg:hidden"
@@ -125,7 +131,6 @@ export function MonitoringSidebar({
         />
       )}
 
-      {/* Sidebar Container */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 transition-transform duration-200 flex flex-col justify-between font-sans text-slate-700",
@@ -134,7 +139,6 @@ export function MonitoringSidebar({
         aria-label="Navigasi utama"
       >
         <div className="min-h-0 flex flex-col">
-          {/* Logo Header Sidebar */}
           <div className="p-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-xs flex-shrink-0">
@@ -161,7 +165,6 @@ export function MonitoringSidebar({
             )}
           </div>
 
-          {/* Menu Navigasi */}
           <nav className="p-3 space-y-4 overflow-y-auto flex-1">
             {navGroups.map((group) => (
               <div key={group.title} className="space-y-0.5">
@@ -212,15 +215,15 @@ export function MonitoringSidebar({
           </nav>
         </div>
 
-        {/* Footer Sidebar Profile */}
+        {/* Footer Profile Sidebar Dinamis */}
         <div className="p-3 border-t border-slate-200 bg-slate-50/60 flex-shrink-0">
           <div className="flex items-center gap-2.5 p-1.5">
             <div className="w-7 h-7 rounded-full bg-teal-600 text-white font-bold flex items-center justify-center text-[11px] shadow-xs flex-shrink-0">
-              SA
+              {user?.initials || "US"}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-slate-900 truncate">Super Admin APTIKA</p>
-              <p className="text-[10px] text-slate-500 truncate">Diskominfo Jabar</p>
+              <p className="text-xs font-bold text-slate-900 truncate">{user?.name || "Pengguna"}</p>
+              <p className="text-[10px] text-slate-500 truncate">{user?.roleLabel || "Operator JDS"}</p>
             </div>
           </div>
         </div>

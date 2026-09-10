@@ -2,163 +2,108 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-export type UserRole = "super_admin" | "admin_opd" | "operator";
+export type UserRole = "super_admin" | "admin_opd" | "operator" | "executive";
 
 export interface UserProfile {
   id: string;
   name: string;
   email: string;
-  initials: string;
+  initials?: string;
   role: UserRole;
-  roleLabel: string;
+  roleLabel?: string;
   opdCode?: string;
   opdName?: string;
-  avatarBg: string;
+  avatarBg?: string;
 }
-
-export const PRESET_ACCOUNTS: UserProfile[] = [
-  {
-    id: "user-superadmin",
-    name: "Super Admin APTIKA",
-    email: "admin.aptika@jabarprov.go.id",
-    initials: "SA",
-    role: "super_admin",
-    roleLabel: "Super Admin (Diskominfo APTIKA)",
-    avatarBg: "bg-brand text-white",
-  },
-  {
-    id: "user-opd-disdukcapil",
-    name: "Sri Rahayu (Admin Disdukcapil)",
-    email: "sri.rahayu@disdukcapil.jabarprov.go.id",
-    initials: "SR",
-    role: "admin_opd",
-    roleLabel: "Admin Perangkat Daerah",
-    opdCode: "DISDUKCAPIL",
-    opdName: "Dinas Kependudukan dan Pencatatan Sipil",
-    avatarBg: "bg-amber-600 text-white",
-  },
-  {
-    id: "user-opd-dinkes",
-    name: "dr. Ahmad Fauzi (Admin Dinkes)",
-    email: "ahmad.fauzi@dinkes.jabarprov.go.id",
-    initials: "AF",
-    role: "admin_opd",
-    roleLabel: "Admin Perangkat Daerah",
-    opdCode: "DINKES",
-    opdName: "Dinas Kesehatan",
-    avatarBg: "bg-emerald-600 text-white",
-  },
-  {
-    id: "user-operator",
-    name: "Operator Monitoring Command Center",
-    email: "operator.cc@jabarprov.go.id",
-    initials: "OP",
-    role: "operator",
-    roleLabel: "Operator / Viewer",
-    avatarBg: "bg-indigo-600 text-white",
-  },
-];
 
 interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
-  login: (email: string, role?: UserRole) => boolean;
-  loginAsPreset: (presetId: string) => void;
+  switchUser: (selectedUser: UserProfile) => void;
   logout: () => void;
   isLoginModalOpen: boolean;
   setLoginModalOpen: (open: boolean) => void;
-  canManageIncidents: (opdCode?: string) => boolean;
-  canManageServices: (opdCode?: string) => boolean;
+  isSuperAdmin: boolean;
+  isAdminOpd: boolean;
+  isOperator: boolean;
+  isExecutive: boolean;
+  canManageUsers: boolean;
+  canManageSettings: boolean;
+  canEditIncidents: (targetOpdCode?: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AUTH_STORAGE_KEY = "aptika_monitoring_auth_user";
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(PRESET_ACCOUNTS[0]);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoginModalOpen, setLoginModalOpen] = useState(false);
+
+  // Normalisasi cerdas untuk mengenali role dari database
+  const formatUserData = (rawUser: any): UserProfile => {
+    const rawRoleStr = String(rawUser.role?.name || rawUser.role?.key || rawUser.role || "operator").toLowerCase();
+    
+    let roleKey: UserRole = "operator";
+    let label = "Operator / Viewer";
+
+    if (rawRoleStr.includes("super") || rawRoleStr === "admin") {
+      roleKey = "super_admin";
+      label = "Super Admin APTIKA";
+    } else if (rawRoleStr.includes("opd") || rawRoleStr.includes("admin_opd")) {
+      roleKey = "admin_opd";
+      label = "Admin Perangkat Daerah";
+    } else if (rawRoleStr.includes("exec") || rawRoleStr.includes("eksekutif")) {
+      roleKey = "executive";
+      label = "Eksekutif Viewer";
+    }
+
+    return {
+      ...rawUser,
+      role: roleKey,
+      initials: rawUser.initials || rawUser.name?.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase() || "US",
+      roleLabel: label,
+      avatarBg: rawUser.avatarBg || "bg-brand text-white",
+    };
+  };
 
   useEffect(() => {
     try {
-      const savedUser = localStorage.getItem(AUTH_STORAGE_KEY);
+      const savedUser = localStorage.getItem("user");
       if (savedUser) {
-        setUser(JSON.parse(savedUser));
+        setUser(formatUserData(JSON.parse(savedUser)));
       }
-    } catch {
-      // fallback to default
+    } catch (e) {
+      console.error("Gagal membaca session pengguna", e);
     }
   }, []);
 
-  const loginAsPreset = (presetId: string) => {
-    const found = PRESET_ACCOUNTS.find((p) => p.id === presetId) || PRESET_ACCOUNTS[0];
-    setUser(found);
+  const switchUser = (selectedUser: UserProfile) => {
+    const formatted = formatUserData(selectedUser);
+    setUser(formatted);
+    localStorage.setItem("user", JSON.stringify(formatted));
     setLoginModalOpen(false);
-    try {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(found));
-    } catch {
-      // ignore
-    }
-  };
-
-  const login = (email: string, role: UserRole = "operator") => {
-    const matched = PRESET_ACCOUNTS.find((p) => p.email.toLowerCase() === email.toLowerCase());
-    if (matched) {
-      setUser(matched);
-      try {
-        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(matched));
-      } catch {
-        // ignore
-      }
-      setLoginModalOpen(false);
-      return true;
-    }
-
-    const newUser: UserProfile = {
-      id: `user-${Date.now()}`,
-      name: email.split("@")[0].toUpperCase(),
-      email,
-      initials: email.slice(0, 2).toUpperCase(),
-      role,
-      roleLabel:
-        role === "super_admin"
-          ? "Super Admin APTIKA"
-          : role === "admin_opd"
-          ? "Admin Perangkat Daerah"
-          : "Operator JDS",
-      avatarBg: "bg-brand text-white",
-    };
-
-    setUser(newUser);
-    setLoginModalOpen(false);
-    try {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(newUser));
-    } catch {
-      // ignore
-    }
-    return true;
+    window.location.reload();
   };
 
   const logout = () => {
     setUser(null);
-    try {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-    } catch {
-      // ignore
-    }
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    window.location.reload();
   };
 
-  const canManageIncidents = (opdCode?: string) => {
-    if (!user) return false;
-    if (user.role === "super_admin") return true;
-    if (user.role === "admin_opd" && (!opdCode || user.opdCode === opdCode)) return true;
-    return false;
-  };
+  const isSuperAdmin = user?.role === "super_admin";
+  const isAdminOpd = user?.role === "admin_opd";
+  const isOperator = user?.role === "operator";
+  const isExecutive = user?.role === "executive";
 
-  const canManageServices = (opdCode?: string) => {
+  const canManageUsers = isSuperAdmin;
+  const canManageSettings = isSuperAdmin;
+
+  const canEditIncidents = (targetOpdCode?: string) => {
     if (!user) return false;
-    if (user.role === "super_admin") return true;
-    if (user.role === "admin_opd" && (!opdCode || user.opdCode === opdCode)) return true;
+    if (isSuperAdmin) return true;
+    if (isAdminOpd && targetOpdCode && user.opdCode === targetOpdCode) return true;
+    if (isOperator) return true;
     return false;
   };
 
@@ -167,13 +112,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         isAuthenticated: !!user,
-        login,
-        loginAsPreset,
+        switchUser,
         logout,
         isLoginModalOpen,
         setLoginModalOpen,
-        canManageIncidents,
-        canManageServices,
+        isSuperAdmin,
+        isAdminOpd,
+        isOperator,
+        isExecutive,
+        canManageUsers,
+        canManageSettings,
+        canEditIncidents,
       }}
     >
       {children}

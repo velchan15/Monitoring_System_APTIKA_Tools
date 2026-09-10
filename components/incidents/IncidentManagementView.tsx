@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   AlertTriangle, CheckCircle2, Clock, Eye, Filter, Search,
-  Send, X, Calendar, Upload, Image as ImageIcon
+  Send, X, Calendar, Upload, Image as ImageIcon, Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { mockIncidents } from "@/lib/data/incidents";
@@ -11,6 +11,7 @@ import type { Incident, IncidentStatus } from "@/lib/types/incident";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { initialOpdSummaries } from "@/lib/dashboard-data";
+import { useAuth } from "@/lib/auth-context";
 
 const SEVERITY_CONFIG = {
   critical: { label: "Kritis / Offline", class: "bg-red-100 text-red-700 border-red-200" },
@@ -33,6 +34,7 @@ interface IncidentDetailDrawerProps {
 }
 
 function IncidentDetailDrawer({ incident, onClose, onUpdateStatus }: IncidentDetailDrawerProps) {
+  const { isExecutive, canEditIncidents } = useAuth();
   const [noteInput, setNoteInput] = useState("");
   const [screenshot, setScreenshot] = useState<string | null>(null);
 
@@ -47,8 +49,9 @@ function IncidentDetailDrawer({ incident, onClose, onUpdateStatus }: IncidentDet
 
   if (!incident) return null;
 
-  const sev = SEVERITY_CONFIG[incident.severity];
+  const sev = SEVERITY_CONFIG[incident.severity] || SEVERITY_CONFIG.info;
   const st = STATUS_CONFIG[incident.status] || STATUS_CONFIG.open;
+  const canEdit = canEditIncidents(incident.opdCode);
 
   const handleAddNote = (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,7 +136,7 @@ function IncidentDetailDrawer({ incident, onClose, onUpdateStatus }: IncidentDet
           <div>
             <h4 className="font-bold text-ink uppercase tracking-wider text-[10px] mb-2">Kronologi & Penanganan</h4>
             <div className="border border-border rounded-xl divide-y divide-border/60 bg-canvas/40">
-              {incident.timeline.map((item, idx) => (
+              {incident.timeline?.map((item, idx) => (
                 <div key={idx} className="p-3 flex items-start gap-3">
                   <span className="font-mono text-[11px] font-bold text-brand shrink-0 w-20">{item.time}</span>
                   <p className="text-ink/80 text-xs">{item.note}</p>
@@ -148,10 +151,12 @@ function IncidentDetailDrawer({ incident, onClose, onUpdateStatus }: IncidentDet
               <h4 className="font-bold text-ink uppercase tracking-wider text-[10px] flex items-center gap-1.5">
                 <ImageIcon className="w-3.5 h-3.5 text-brand" /> Bukti / Screenshot
               </h4>
-              <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 bg-brand-soft text-brand rounded hover:bg-brand/20 font-semibold transition text-[11px]">
-                <Upload className="w-3 h-3" /> Upload Bukti
-                <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
-              </label>
+              {!isExecutive && (
+                <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 bg-brand-soft text-brand rounded hover:bg-brand/20 font-semibold transition text-[11px]">
+                  <Upload className="w-3 h-3" /> Upload Bukti
+                  <input type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+                </label>
+              )}
             </div>
             <div className="border border-border rounded-xl overflow-hidden bg-canvas">
               {screenshot ? (
@@ -168,8 +173,8 @@ function IncidentDetailDrawer({ incident, onClose, onUpdateStatus }: IncidentDet
             </div>
           </div>
 
-          {/* Add note form */}
-          {incident.status !== "resolved" && (
+          {/* Form update catatan teknis (Diberikan untuk non-Executive) */}
+          {!isExecutive && incident.status !== "resolved" && (
             <form onSubmit={handleAddNote} className="pt-1">
               <label className="block font-bold text-ink uppercase tracking-wider text-[10px] mb-1.5">
                 Tambahkan Update / Catatan Teknis:
@@ -193,10 +198,10 @@ function IncidentDetailDrawer({ incident, onClose, onUpdateStatus }: IncidentDet
         {/* Footer */}
         <div className="border-t border-border px-5 py-3 bg-canvas flex items-center justify-between flex-shrink-0">
           <span className="text-[11px] text-ink/50">
-            {incident.status === "resolved" ? "Tiket insiden telah ditutup." : `Ditangani: ${incident.assignedTo}`}
+            {incident.status === "resolved" ? "Tiket insiden telah ditutup." : `Ditangani: ${incident.assignedTo || "Operator"}`}
           </span>
           <div className="flex items-center gap-2">
-            {incident.status !== "resolved" && (
+            {canEdit && incident.status !== "resolved" && (
               <button
                 type="button"
                 onClick={() => onUpdateStatus(incident.id, "resolved")}
@@ -216,11 +221,34 @@ function IncidentDetailDrawer({ incident, onClose, onUpdateStatus }: IncidentDet
 }
 
 export function IncidentManagementView() {
-  const [incidents, setIncidents] = useState<Incident[]>(mockIncidents);
+  const { canEditIncidents } = useAuth();
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [opdFilter, setOpdFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const fetchIncidents = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("http://localhost:3001/api/incidents");
+      if (res.ok) {
+        const data = await res.json();
+        setIncidents(data);
+      } else {
+        setIncidents(mockIncidents);
+      }
+    } catch {
+      setIncidents(mockIncidents);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchIncidents();
+  }, [fetchIncidents]);
 
   const filtered = incidents.filter((inc) => {
     if (statusFilter === "active" && inc.status !== "open" && inc.status !== "investigating") return false;
@@ -234,12 +262,22 @@ export function IncidentManagementView() {
     return true;
   });
 
-  const handleUpdateStatus = useCallback((id: string, newStatus: IncidentStatus, note?: string) => {
+  const handleUpdateStatus = useCallback(async (id: string, newStatus: IncidentStatus, note?: string) => {
+    try {
+      await fetch(`http://localhost:3001/api/incidents/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus, note }),
+      });
+    } catch (e) {
+      console.error("Gagal sinkron status ke server:", e);
+    }
+
     setIncidents((prev) =>
       prev.map((inc) => {
         if (inc.id !== id) return inc;
         const nowStr = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB";
-        const updatedTimeline = [...inc.timeline];
+        const updatedTimeline = [...(inc.timeline || [])];
         if (note) updatedTimeline.push({ time: nowStr, note });
         else if (newStatus === "resolved") updatedTimeline.push({ time: nowStr, note: "Insiden diselesaikan oleh operator." });
         const updated = { ...inc, status: newStatus, timeline: updatedTimeline };
@@ -313,7 +351,11 @@ export function IncidentManagementView() {
       </div>
 
       {/* Table */}
-      {filtered.length === 0 ? (
+      {isLoading ? (
+        <div className="flex justify-center items-center py-12 bg-white rounded-xl border border-border text-xs text-ink/50 gap-2">
+          <Loader2 className="w-4 h-4 animate-spin text-brand" /> Memuat daftar tiket insiden...
+        </div>
+      ) : filtered.length === 0 ? (
         <EmptyState title="Tidak ada insiden ditemukan" description="Ubah filter atau kata kunci pencarian untuk melihat insiden." icon={AlertTriangle} />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border bg-white shadow-sm">
@@ -327,8 +369,10 @@ export function IncidentManagementView() {
             </thead>
             <tbody className="divide-y divide-border/60">
               {filtered.map((inc) => {
-                const sev = SEVERITY_CONFIG[inc.severity];
+                const sev = SEVERITY_CONFIG[inc.severity] || SEVERITY_CONFIG.info;
                 const st = STATUS_CONFIG[inc.status] || STATUS_CONFIG.open;
+                const canEdit = canEditIncidents(inc.opdCode);
+
                 return (
                   <tr key={inc.id} className="hover:bg-canvas/40 transition-colors">
                     <td className="px-4 py-3">
@@ -343,7 +387,7 @@ export function IncidentManagementView() {
                       <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold", st.class)}>{st.label}</span>
                     </td>
                     <td className="px-4 py-3 font-mono text-[11px] text-ink/60 whitespace-nowrap">{inc.startedAt}</td>
-                    <td className="px-4 py-3 text-[11px] text-ink/60 whitespace-nowrap">{inc.duration.replace(" (Selesai)", "")}</td>
+                    <td className="px-4 py-3 text-[11px] text-ink/60 whitespace-nowrap">{inc.duration?.replace(" (Selesai)", "")}</td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
@@ -353,7 +397,7 @@ export function IncidentManagementView() {
                         >
                           <Eye className="h-3 w-3" /> Detail
                         </button>
-                        {inc.status !== "resolved" && (
+                        {canEdit && inc.status !== "resolved" && (
                           <button
                             type="button"
                             onClick={() => handleUpdateStatus(inc.id, "resolved")}

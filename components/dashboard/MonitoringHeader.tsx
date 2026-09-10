@@ -8,7 +8,6 @@ import {
   LogOut,
   Menu,
   RefreshCcw,
-  Users,
 } from "lucide-react";
 
 import { useAuth } from "@/lib/auth-context";
@@ -21,7 +20,7 @@ interface MonitoringHeaderProps {
 }
 
 export function MonitoringHeader({ onOpenSidebar, onNavigateTab }: MonitoringHeaderProps) {
-  const { user, setLoginModalOpen, logout } = useAuth();
+  const { user, logout } = useAuth();
   const [isProfileMenuOpen, setProfileMenuOpen] = useState(false);
   const [isNotifOpen, setNotifOpen] = useState(false);
 
@@ -35,10 +34,7 @@ export function MonitoringHeader({ onOpenSidebar, onNavigateTab }: MonitoringHea
     return () => clearInterval(timer);
   }, []);
 
-  // Derive unread count from mock data (will be replaced by real data when backend is live)
   const unreadCount = mockNotifications.filter((n) => !n.isRead).length;
-
-  // Recent unread notifications for the dropdown
   const recentNotifs = mockNotifications.filter((n) => !n.isRead).slice(0, 3);
 
   const days = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
@@ -164,11 +160,11 @@ export function MonitoringHeader({ onOpenSidebar, onNavigateTab }: MonitoringHea
                 user?.avatarBg || "bg-brand text-white"
               )}
             >
-              {user?.initials || "SA"}
+              {user?.initials || "US"}
             </span>
             <div className="hidden text-left sm:block">
-              <p className="text-[12px] font-semibold text-ink leading-tight">{user?.name || "Admin"}</p>
-              <p className="text-[10px] text-ink/50 leading-tight">{user?.roleLabel || "Super Admin"}</p>
+              <p className="text-[12px] font-semibold text-ink leading-tight">{user?.name || "Pengguna"}</p>
+              <p className="text-[10px] text-ink/50 leading-tight">{user?.roleLabel || "Operator"}</p>
             </div>
             <ChevronDown className="hidden h-3.5 w-3.5 text-ink/40 sm:block" />
           </button>
@@ -183,7 +179,7 @@ export function MonitoringHeader({ onOpenSidebar, onNavigateTab }: MonitoringHea
                       user?.avatarBg || "bg-brand text-white"
                     )}
                   >
-                    {user?.initials || "SA"}
+                    {user?.initials || "US"}
                   </span>
                   <div className="min-w-0">
                     <p className="truncate text-xs font-bold text-ink">{user?.name}</p>
@@ -198,24 +194,11 @@ export function MonitoringHeader({ onOpenSidebar, onNavigateTab }: MonitoringHea
               <div className="py-1">
                 <button
                   type="button"
-                  onClick={() => { setLoginModalOpen(true); setProfileMenuOpen(false); }}
-                  className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-xs font-medium text-ink hover:bg-canvas"
-                >
-                  <Users className="h-4 w-4 text-brand" />
-                  Ganti Akun / Role
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    localStorage.removeItem("token");
-                    localStorage.removeItem("user");
-                    logout();
-                    window.location.reload();
-                  }}
+                  onClick={logout}
                   className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50"
                 >
                   <LogOut className="h-4 w-4" />
-                  Keluar Akun
+                  Keluar / Ganti Akun
                 </button>
               </div>
             </div>
