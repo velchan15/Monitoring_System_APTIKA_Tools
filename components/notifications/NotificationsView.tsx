@@ -1,223 +1,135 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-  Bell, Send, Mail, Webhook, Check, AlertTriangle, Info, CheckCircle2,
-  XCircle, Users, ToggleLeft, ToggleRight
-} from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Bell, CheckCircle2, AlertTriangle, ShieldCheck, RefreshCcw, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  mockNotifications, mockChannels, mockRecipients,
-  markNotificationRead, markAllNotificationsRead
-} from "@/lib/data/notifications";
-import type { NotificationItem, NotificationChannelConfig } from "@/lib/types/notification";
+import { EmptyState } from "@/components/ui/EmptyState";
 
-const SEVERITY_ICON: Record<string, React.ElementType> = {
-  critical: XCircle,
-  warning: AlertTriangle,
-  info: Info,
-  success: CheckCircle2,
+interface NotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  severity: "critical" | "warning" | "info" | "success";
+  isRead: boolean;
+  timestamp: string;
+  targetUrl?: string;
+}
+
+const SEVERITY_DOT = {
+  critical: "bg-status-offline",
+  warning: "bg-status-warning",
+  success: "bg-status-online",
+  info: "bg-brand",
 };
-
-const SEVERITY_CLASS: Record<string, string> = {
-  critical: "text-status-offline",
-  warning: "text-status-warning",
-  info: "text-brand",
-  success: "text-status-online",
-};
-
-const CHANNEL_ICON: Record<string, React.ElementType> = {
-  telegram: Send,
-  email: Mail,
-  webhook: Webhook,
-};
-
-type ActiveTab = "inbox" | "pengaturan";
 
 export function NotificationsView() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>("inbox");
-  const [notifs, setNotifs] = useState<NotificationItem[]>(mockNotifications);
-  const [channels, setChannels] = useState<NotificationChannelConfig[]>(mockChannels);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const unreadCount = notifs.filter((n) => !n.isRead).length;
+  const fetchNotifications = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("http://localhost:3001/api/notifications");
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data);
+      }
+    } catch (err) {
+      console.error("Gagal mengambil notifikasi:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-  const handleMarkRead = (id: string) => {
-    markNotificationRead(id);
-    setNotifs((prev) => prev.map((n) => n.id === id ? { ...n, isRead: true } : n));
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  const markAsRead = async (id: string) => {
+    try {
+      await fetch(`http://localhost:3001/api/notifications/${id}/read`, {
+        method: "PATCH",
+      });
+      fetchNotifications();
+    } catch (err) {
+      console.error("Gagal menandai dibaca:", err);
+    }
   };
 
-  const handleMarkAllRead = async () => {
-    await markAllNotificationsRead();
-    setNotifs((prev) => prev.map((n) => ({ ...n, isRead: true })));
-  };
-
-  const toggleChannel = (id: string) => {
-    setChannels((prev) => prev.map((c) => c.id === id ? { ...c, isEnabled: !c.isEnabled } : c));
-  };
-
-  const TABS = [
-    { k: "inbox" as ActiveTab, l: "Kotak Masuk", count: unreadCount },
-    { k: "pengaturan" as ActiveTab, l: "Pengaturan Notifikasi" },
-  ];
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
     <div className="space-y-4">
-      {/* Tab navigation */}
-      <div className="flex rounded-lg border border-border bg-canvas p-0.5 w-fit">
-        {TABS.map((tab) => (
+      {/* Header Info */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl border border-border shadow-sm">
+        <div>
+          <h2 className="text-sm font-bold text-ink">Kotak Masuk Notifikasi</h2>
+          <p className="text-xs text-ink/50 mt-0.5">
+            {unreadCount > 0 ? `${unreadCount} notifikasi belum dibaca dari ${notifications.length} total` : "Semua notifikasi telah dibaca"}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {unreadCount > 0 && (
+            <button
+              type="button"
+              onClick={() => markAsRead("all")}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-soft text-brand font-semibold rounded-lg hover:bg-brand/20 transition text-xs"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" /> Tandai Semua Dibaca
+            </button>
+          )}
           <button
-            key={tab.k}
             type="button"
-            onClick={() => setActiveTab(tab.k)}
-            className={cn(
-              "rounded-md px-4 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5",
-              activeTab === tab.k ? "bg-white text-brand shadow-sm" : "text-ink/50 hover:text-ink"
-            )}
+            onClick={fetchNotifications}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border bg-canvas text-ink/70 font-semibold rounded-lg hover:bg-border transition text-xs"
           >
-            {tab.l}
-            {tab.count !== undefined && tab.count > 0 && (
-              <span className="text-[10px] font-mono rounded-full bg-status-offline px-1.5 py-0.5 text-white">
-                {tab.count}
-              </span>
-            )}
+            <RefreshCcw className="w-3.5 h-3.5" /> Segarkan
           </button>
-        ))}
+        </div>
       </div>
 
-      {/* INBOX TAB */}
-      {activeTab === "inbox" && (
-        <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
-            <div>
-              <h3 className="text-sm font-semibold text-ink">Kotak Masuk Notifikasi</h3>
-              <p className="text-xs text-ink/45">{unreadCount} notifikasi belum dibaca dari {notifs.length} total</p>
-            </div>
-            {unreadCount > 0 && (
-              <button type="button" onClick={handleMarkAllRead} className="text-xs font-semibold text-brand hover:underline flex items-center gap-1">
-                <Check className="h-3.5 w-3.5" /> Tandai Semua Dibaca
-              </button>
-            )}
-          </div>
-
-          <div className="divide-y divide-border/60">
-            {notifs.map((n) => {
-              const SevIcon = SEVERITY_ICON[n.severity] || Info;
-              return (
-                <div
-                  key={n.id}
-                  className={cn(
-                    "flex items-start gap-3.5 px-4 py-3.5 transition-colors",
-                    !n.isRead ? "bg-brand-soft/10" : "hover:bg-canvas/60"
-                  )}
-                >
-                  <SevIcon className={cn("h-4 w-4 mt-0.5 shrink-0", SEVERITY_CLASS[n.severity])} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className={cn("text-xs font-semibold", !n.isRead ? "text-ink" : "text-ink/75")}>{n.title}</p>
-                      <span className="text-[10px] text-ink/40 font-mono whitespace-nowrap flex-shrink-0">{n.timestamp}</span>
-                    </div>
-                    <p className="text-[11px] text-ink/60 mt-0.5 line-clamp-2">{n.message}</p>
+      {/* List Notifikasi */}
+      {isLoading ? (
+        <div className="flex justify-center items-center py-12 bg-white rounded-xl border border-border text-xs text-ink/50 gap-2">
+          <Loader2 className="w-4 h-4 animate-spin text-brand" /> Memuat daftar notifikasi...
+        </div>
+      ) : notifications.length === 0 ? (
+        <EmptyState title="Tidak ada notifikasi" description="Kotak masuk Anda bersih dari pemberitahuan gangguan." icon={Bell} />
+      ) : (
+        <div className="bg-white rounded-xl border border-border divide-y divide-border/60 shadow-sm overflow-hidden">
+          {notifications.map((n) => (
+            <div
+              key={n.id}
+              className={cn(
+                "p-4 flex items-start justify-between gap-4 transition-colors",
+                !n.isRead ? "bg-brand-soft/20" : "hover:bg-canvas/40"
+              )}
+            >
+              <div className="flex items-start gap-3 min-w-0">
+                <span className={cn("mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full", SEVERITY_DOT[n.severity] || SEVERITY_DOT.info)} />
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xs font-bold text-ink">{n.title}</p>
                     {!n.isRead && (
-                      <button
-                        type="button"
-                        onClick={() => handleMarkRead(n.id)}
-                        className="mt-1.5 text-[10px] font-semibold text-brand hover:underline"
-                      >
-                        Tandai Dibaca
-                      </button>
+                      <span className="bg-brand text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">Baru</span>
                     )}
                   </div>
-                  {!n.isRead && <span className="mt-1.5 h-2 w-2 rounded-full bg-brand flex-shrink-0" />}
+                  <p className="text-xs text-ink/75 leading-relaxed">{n.message}</p>
+                  <p className="text-[10px] text-ink/40 font-mono">{n.timestamp}</p>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+              </div>
 
-      {/* SETTINGS TAB */}
-      {activeTab === "pengaturan" && (
-        <div className="space-y-4">
-          {/* Channels */}
-          <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
-            <div className="px-4 py-3.5 border-b border-border">
-              <h3 className="text-sm font-semibold text-ink">Saluran Notifikasi</h3>
-              <p className="text-xs text-ink/45">Konfigurasi metode pengiriman notifikasi insiden</p>
+              {!n.isRead && (
+                <button
+                  type="button"
+                  onClick={() => markAsRead(n.id)}
+                  className="shrink-0 text-[11px] font-semibold text-brand hover:underline whitespace-nowrap pt-1"
+                >
+                  Tandai Dibaca
+                </button>
+              )}
             </div>
-            <div className="divide-y divide-border/60">
-              {channels.map((ch) => {
-                const CIcon = CHANNEL_ICON[ch.type] || Bell;
-                const Toggle = ch.isEnabled ? ToggleRight : ToggleLeft;
-                return (
-                  <div key={ch.id} className="flex items-center justify-between gap-4 px-4 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-canvas">
-                        <CIcon className="h-4 w-4 text-ink/60" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-ink">{ch.name}</p>
-                        <p className="text-[11px] text-ink/50 font-mono">{ch.destination}</p>
-                        <div className="flex gap-1 mt-0.5">
-                          {ch.subscribedCategories.map((cat) => (
-                            <span key={cat} className="text-[9px] rounded-full bg-brand-soft text-brand px-1.5 py-0.5 font-semibold uppercase">{cat}</span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      <span className={cn("text-[11px] font-semibold", ch.isEnabled ? "text-status-online" : "text-ink/40")}>
-                        {ch.isEnabled ? "Aktif" : "Nonaktif"}
-                      </span>
-                      <button type="button" onClick={() => toggleChannel(ch.id)} aria-label={`Toggle ${ch.name}`}>
-                        <Toggle className={cn("h-7 w-7 transition-colors", ch.isEnabled ? "text-teal-600" : "text-slate-300")} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Recipients */}
-          <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
-            <div className="px-4 py-3.5 border-b border-border">
-              <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
-                <Users className="h-4 w-4 text-ink/40" /> Daftar Penerima (PIC per OPD)
-              </h3>
-              <p className="text-xs text-ink/45">Kontak teknis yang akan menerima notifikasi eskalasi insiden</p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs min-w-[600px]">
-                <thead>
-                  <tr className="border-b border-border bg-canvas/60">
-                    {["OPD", "Nama PIC", "Email", "Telegram", "Status Alert"].map((h) => (
-                      <th key={h} className="px-4 py-3 font-semibold uppercase tracking-wider text-[10px] text-ink/50">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {mockRecipients.map((r) => (
-                    <tr key={r.id} className="hover:bg-canvas/40 transition-colors">
-                      <td className="px-4 py-3">
-                        <span className="font-mono text-[10px] bg-brand-soft text-brand rounded px-1.5 py-0.5 font-semibold">{r.opdCode}</span>
-                      </td>
-                      <td className="px-4 py-3 font-semibold text-ink">{r.picName}</td>
-                      <td className="px-4 py-3 font-mono text-[11px] text-ink/60">{r.email}</td>
-                      <td className="px-4 py-3 font-mono text-[11px] text-ink/60">{r.telegramHandle || "-"}</td>
-                      <td className="px-4 py-3">
-                        <span className={cn(
-                          "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
-                          r.isAlertActive ? "bg-emerald-100 text-emerald-800 border-emerald-200" : "bg-slate-100 text-slate-500 border-slate-200"
-                        )}>
-                          {r.isAlertActive ? "Aktif" : "Nonaktif"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          ))}
         </div>
       )}
     </div>

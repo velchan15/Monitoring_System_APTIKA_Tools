@@ -6,8 +6,10 @@ const getAllApplications = async (req, res) => {
     const apps = await prisma.application.findMany({
       include: { department: true }
     });
+    console.log("DEBUG - Berhasil menarik data:", apps.length, "aplikasi");
     res.json({ success: true, data: apps });
   } catch (error) {
+    console.error("DEBUG - Error database:", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };

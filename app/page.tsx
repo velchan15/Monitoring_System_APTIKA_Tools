@@ -26,22 +26,18 @@ import { IntegrationsView } from "@/components/integrations/IntegrationsView";
 import { AuditTrailView } from "@/components/audit/AuditTrailView";
 
 import { AuthProvider, useAuth } from "@/lib/auth-context";
-import { dashboardStatusMetrics } from "@/lib/dashboard-data";
 import { mockIncidents } from "@/lib/data/incidents";
 
-function LiveAlertBadge() {
-  const onlineMetric = dashboardStatusMetrics.find((m) => m.key === "online");
-  const totalMetric = dashboardStatusMetrics.find((m) => m.key === "total");
-  if (!onlineMetric || !totalMetric) return null;
+function LiveAlertBadge({ onlineCount, totalCount }: { onlineCount: number; totalCount: number }) {
   return (
     <div className="flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-ink shadow-2xs">
       <span className="h-2 w-2 rounded-full bg-status-online motion-safe:animate-ping" />
-      {onlineMetric.value} / {totalMetric.value} Layanan Normal
+      {onlineCount} / {totalCount} Layanan Normal
     </div>
   );
 }
 
-function DashboardGreeting({ name }: { name?: string }) {
+function DashboardGreeting({ name, onlineCount, totalCount }: { name?: string; onlineCount: number; totalCount: number }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
@@ -52,7 +48,7 @@ function DashboardGreeting({ name }: { name?: string }) {
           Monitoring ketersediaan, performa server, dan status layanan digital Pemerintah Provinsi Jawa Barat secara realtime.
         </p>
       </div>
-      <LiveAlertBadge />
+      <LiveAlertBadge onlineCount={onlineCount} totalCount={totalCount} />
     </div>
   );
 }
@@ -84,6 +80,60 @@ function DashboardContent() {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<NavTabId>("dashboard");
 
+  // State untuk data aplikasi dinamis dari database
+  const [appMetrics, setAppMetrics] = useState([
+    { key: "total", label: "Total Aplikasi", value: "0", subtext: "Semua aplikasi terdaftar di Jabar", variant: "neutral" },
+    { key: "online", label: "Online / Normal", value: "0", subtext: "0% beroperasi normal", variant: "online" },
+    { key: "warning", label: "Warning / Degraded", value: "0", subtext: "Perlu penanganan teknis", variant: "warning" },
+    { key: "offline", label: "Offline / Kritis", value: "0", subtext: "0% layanan terhenti", variant: "offline" },
+    { key: "maintenance", label: "Maintenance", value: "0", subtext: "Tidak ada jadwal pemeliharaan", variant: "maintenance" },
+  ]);
+
+  // Fungsi untuk menarik data dari API backend
+  const fetchAppMetrics = async () => {
+    try {
+      const res = await fetch("http://localhost:3001/api/applications");
+      const jsonRes = await res.json();
+      const data = jsonRes.data || jsonRes;
+
+      if (Array.isArray(data)) {
+        const total = data.length;
+        const online = data.filter((a) => a.status === "ONLINE").length;
+        const warning = data.filter((a) => a.status === "WARNING").length;
+        const offline = data.filter((a) => a.status === "OFFLINE").length;
+        const maintenance = data.filter((a) => a.status === "MAINTENANCE").length;
+
+        const onlinePct = total > 0 ? ((online / total) * 100).toFixed(2) : "0";
+        const offlinePct = total > 0 ? ((offline / total) * 100).toFixed(2) : "0";
+
+        setAppMetrics([
+          { key: "total", label: "Total Aplikasi", value: String(total), subtext: "Semua aplikasi terdaftar di Jabar", variant: "neutral" },
+          { key: "online", label: "Online / Normal", value: String(online), subtext: `${onlinePct}% beroperasi normal`, variant: "online" },
+          { key: "warning", label: "Warning / Degraded", value: String(warning), subtext: "Perlu penanganan teknis", variant: "warning" },
+          { key: "offline", label: "Offline / Kritis", value: String(offline), subtext: `${offlinePct}% layanan terhenti`, variant: "offline" },
+          { key: "maintenance", label: "Maintenance", value: String(maintenance), subtext: "Tidak ada jadwal pemeliharaan", variant: "maintenance" },
+        ]);
+      }
+    } catch (err) {
+      console.error("Gagal melakukan auto-refresh data aplikasi:", err);
+    }
+  };
+
+  // AUTO REFRESH SETIAP 30 DETIK
+  useEffect(() => {
+    // Ambil data pertama kali saat komponen dimuat
+    fetchAppMetrics();
+
+    // Jalankan interval setiap 30.000 milidetik (30 detik)
+    const intervalId = setInterval(fetchAppMetrics, 30 * 1000);
+
+    // Hentikan interval saat halaman ditutup/pindah tab untuk menghemat memori
+    return () => clearInterval(intervalId);
+  }, []);
+
+  const onlineMetricVal = Number(appMetrics.find((m) => m.key === "online")?.value || 0);
+  const totalMetricVal = Number(appMetrics.find((m) => m.key === "total")?.value || 0);
+
   const activeIncidentCount = mockIncidents.filter(
     (i) => i.status === "open" || i.status === "investigating"
   ).length;
@@ -112,10 +162,10 @@ function DashboardContent() {
         <main className="flex-1 p-4 sm:p-5 space-y-4">
           {activeTab === "dashboard" && (
             <>
-              <DashboardGreeting name={user?.name} />
+              <DashboardGreeting name={user?.name} onlineCount={onlineMetricVal} totalCount={totalMetricVal} />
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                {dashboardStatusMetrics.map((metric) => (
-                  <StatusCard key={metric.key} metric={metric} />
+                {appMetrics.map((metric) => (
+                  <StatusCard key={metric.key} metric={metric as any} />
                 ))}
               </div>
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
@@ -250,13 +300,13 @@ function RootAuthGate() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
-  
+
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = sessionStorage.getItem("token");
     if (token) {
       setIsAuthenticated(true);
     }
@@ -279,8 +329,8 @@ function RootAuthGate() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Email atau password salah.");
 
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      sessionStorage.setItem("token", data.token);
+      sessionStorage.setItem("user", JSON.stringify(data.user));
       setIsAuthenticated(true);
     } catch (err: any) {
       setError(err.message);
@@ -358,7 +408,6 @@ function RootAuthGate() {
           )}
 
           {!isRegisterMode ? (
-            // FORM LOGIN
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">Alamat Email</label>
@@ -410,7 +459,6 @@ function RootAuthGate() {
               </div>
             </form>
           ) : (
-            // FORM REGISTER
             <form onSubmit={handleRegister} className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Lengkap</label>

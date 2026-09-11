@@ -6,6 +6,9 @@ const { createReadinessCheck } = require("./health/readiness");
 const { redisConnection } = require("./queues/connection");
 const { closeQueues } = require("./queues/queues");
 
+// 1. Impor worker pemantau uptime
+const { startUptimeWorker } = require("../workers/uptimeWorker");
+
 const port = Number.parseInt(process.env.PORT || "3001", 10);
 const app = createApp({
   readiness: createReadinessCheck({ prisma, redis: redisConnection }),
@@ -13,6 +16,9 @@ const app = createApp({
 
 const server = app.listen(port, () => {
   console.log(`Monitoring API berjalan pada http://127.0.0.1:${port}`);
+  
+  // 2. Jalankan background worker setelah server berhasil menyala
+  startUptimeWorker();
 });
 
 async function shutdown(signal) {

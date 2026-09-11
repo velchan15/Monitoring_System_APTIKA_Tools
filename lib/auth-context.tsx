@@ -38,7 +38,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoginModalOpen, setLoginModalOpen] = useState(false);
 
-  // Normalisasi cerdas untuk mengenali role dari database
   const formatUserData = (rawUser: any): UserProfile => {
     const rawRoleStr = String(rawUser.role?.name || rawUser.role?.key || rawUser.role || "operator").toLowerCase();
     
@@ -67,7 +66,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
-      const savedUser = localStorage.getItem("user");
+      // Mengubah localStorage menjadi sessionStorage
+      const savedUser = sessionStorage.getItem("user");
       if (savedUser) {
         setUser(formatUserData(JSON.parse(savedUser)));
       }
@@ -79,15 +79,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const switchUser = (selectedUser: UserProfile) => {
     const formatted = formatUserData(selectedUser);
     setUser(formatted);
-    localStorage.setItem("user", JSON.stringify(formatted));
+    // Mengubah localStorage menjadi sessionStorage
+    sessionStorage.setItem("user", JSON.stringify(formatted));
     setLoginModalOpen(false);
     window.location.reload();
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    // Mengubah localStorage menjadi sessionStorage
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("user");
     window.location.reload();
   };
 

@@ -1,20 +1,17 @@
 const express = require('express');
 const router = express.Router();
+
 const { 
   getAllApplications, 
   createApplication, 
   updateApplication, 
   deleteApplication 
 } = require('../controllers/application.controller');
-const { authenticateToken } = require('../middlewares/auth');
-const { authorizeRoles } = require('../middlewares/rbac');
 
-// Semua route dilindungi JWT
-router.use(authenticateToken);
-
+// Definisi Endpoint CRUD Aplikasi
 router.get('/', getAllApplications);
-router.post('/', authorizeRoles(1), createApplication);        // Admin Only
-router.put('/:id', authorizeRoles(1), updateApplication);     // Admin Only
-router.delete('/:id', authorizeRoles(1), deleteApplication);  // Admin Only
+router.post('/', createApplication);
+router.put('/:id', updateApplication);
+router.delete('/:id', deleteApplication);
 
 module.exports = router;

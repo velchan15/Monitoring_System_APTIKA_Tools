@@ -2,15 +2,22 @@ const express = require("express");
 const cors = require("cors");
 const authRoutes = require("./routes/auth.routes");
 const userRoutes = require('./routes/user.routes');
-const applicationRoutes = require("./routes/application.routes");
 const incidentRoutes = require('./routes/incidentRoutes');
+
 
 function createApp({ readiness = async () => ({ database: "error", redis: "error" }) } = {}) {
   const app = express();
 
-  app.use(cors());
   app.use(express.json());
+  app.use(cors());
+  app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
+  app.use('/api/notifications', require('./routes/notification.routes'));
+
+ const applicationRoutes = require('./routes/application.routes');
+  app.use('/api/applications', applicationRoutes);
+
+  app.use('/api/incidents', incidentRoutes);
 
   // Health Check Endpoints
   app.get("/api/health/live", (_request, response) => {
@@ -42,6 +49,16 @@ function createApp({ readiness = async () => ({ database: "error", redis: "error
       message: "Route tidak ditemukan.",
     });
   });
+
+  // Jalankan background worker untuk memantau uptime aplikasi
+  const { startUptimeWorker } = require("../workers/uptimeWorker");
+
+  app.listen(3001, () => {
+  console.log("Server backend berjalan di port 3001");
+  
+  // Nyalakan background worker pemantau uptime
+  startUptimeWorker();
+});
 
   return app;
 }
