@@ -1,4 +1,4 @@
-# Monitoring System — Dashboard Foundation (Tahap 1)
+# Monitoring System
 
 Dashboard shell untuk sistem monitoring aplikasi APTIKA, Diskominfo Jawa Barat.
 Tahap ini **belum** terhubung ke backend — semua data di halaman berasal dari
@@ -14,24 +14,105 @@ D:\App\APTIKA\monitoring_system
 
 ## Cara menjalankan
 
-Butuh Node.js 18.18+ atau 20+ terpasang.
+Project ini punya **dua bagian terpisah** yang masing-masing punya `package.json`
+dan `node_modules` sendiri, dan **belum saling terhubung** (frontend masih pakai
+mock data dari `lib/dashboard-data.ts`, backend belum punya endpoint dashboard):
+
+```
+monitoring_system/          ← frontend (Next.js) — root repo
+backend/                    ← backend (Express + Prisma + BullMQ) — opsional, MVP
+```
+
+Kalau tujuannya cuma lihat/lanjut kerjain tampilan dashboard, **cukup jalankan
+bagian Frontend saja** — bagian Backend boleh dilewati.
+
+### 1. Frontend (Next.js) — dashboard
+
+**Prasyarat:** Node.js 18.18+ atau 20+.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Buka `http://localhost:3000` — halaman dashboard akan langsung tampil (tidak
-perlu login/API, sesuai scope tahap 1).
+Buka `http://localhost:3000` — dashboard langsung tampil (tidak perlu login,
+tidak perlu backend/API apa pun menyala).
 
-## Verifikasi build & lint
+Script lain yang tersedia (lihat `package.json`):
 
-Sebelum dipakai, sudah diverifikasi jalan bersih:
+| Perintah        | Fungsi                                             |
+|-----------------|-----------------------------------------------------|
+| `npm run dev`   | Jalankan mode development di `localhost:3000`       |
+| `npm run build` | Build production (`.next/`)                         |
+| `npm run start` | Jalankan hasil build production (jalankan `build` dulu) |
+| `npm run lint`  | Jalankan ESLint (`eslint-config-next`)               |
+
+Sudah diverifikasi jalan bersih:
 
 ```bash
 npm run lint   # ✔ No ESLint warnings or errors
 npm run build  # ✓ Compiled successfully
 ```
+
+### 2. Backend (Express + Prisma + BullMQ) — opsional, MVP
+
+Fondasi API di folder `backend/` — baru menyediakan koneksi database/queue dan
+health check, **belum ada endpoint dashboard/aplikasi/auth** (lihat roadmap di
+bagian 14). Tidak wajib dijalankan untuk melihat dashboard di atas.
+
+**Prasyarat:**
+- Node.js 20+
+- PostgreSQL yang jalan (default expect `127.0.0.1:5432`)
+- Redis yang jalan (default expect `127.0.0.1:6379`)
+
+**Environment variable** (`backend/.env` — belum ada `.env.example` karena pola
+`.env.*` ikut ter-`.gitignore`, jadi buat filenya manual):
+
+```env
+DATABASE_URL="postgresql://monitoring:PASSWORD_ANDA@127.0.0.1:5432/monitoring?schema=public"
+REDIS_URL="redis://127.0.0.1:6379"
+PORT=3001
+```
+
+**Langkah setup:**
+
+```bash
+cd backend
+npm install
+
+# generate Prisma Client dari prisma/schema.prisma
+npm run prisma:generate
+
+# buat seluruh tabel di database sesuai schema
+npm run prisma:migrate -- --name init
+
+# jalankan API (auto-restart pakai --watch)
+npm run dev
+```
+
+API mendengarkan di `http://127.0.0.1:3001`. Cek kesehatannya:
+
+```bash
+curl http://127.0.0.1:3001/api/health/live
+# {"service":"monitoring-api","status":"ok"}
+
+curl http://127.0.0.1:3001/api/health/ready
+# 200 kalau PostgreSQL & Redis nyala, 503 kalau salah satu mati
+```
+
+Script lain (lihat `backend/package.json`):
+
+| Perintah                  | Fungsi                                                        |
+|---------------------------|----------------------------------------------------------------|
+| `npm run dev`             | Jalankan API dengan `node --watch` (auto-restart)              |
+| `npm run start`           | Jalankan API tanpa watch (mode produksi sederhana)              |
+| `npm test`                | Unit test (`node --test`) — **tidak butuh** PostgreSQL/Redis nyala |
+| `npm run prisma:generate` | Generate Prisma Client                                          |
+| `npm run prisma:migrate`  | Jalankan migrasi Prisma ke database                             |
+| `npm run prisma:validate` | Validasi syntax `schema.prisma` — juga tidak butuh DB nyala      |
+
+Panduan lengkap setup PostgreSQL/Redis di Windows (termasuk lewat Laragon) ada
+di [backend/README.md](backend/README.md).
 
 ## Struktur project
 
@@ -577,4 +658,9 @@ playwright-worker/
 
 ## Backend MVP lokal
 
-Implementasi fondasi backend berada di [backend/README.md](backend/README.md). Backend menggunakan Express, Prisma dengan PostgreSQL, serta BullMQ dengan Redis Laragon. Belum ada Docker Compose karena lingkungan pengembangan ini menjalankan layanan secara lokal.
+Implementasi fondasi backend ada di folder [`backend/`](backend/), pakai Express,
+Prisma (PostgreSQL), serta BullMQ dengan Redis. Cara instal & menjalankannya ada
+di bagian [Cara menjalankan → 2. Backend](#2-backend-express-prisma-bullmq-opsional-mvp)
+di atas, dan panduan detail setup PostgreSQL/Redis di Windows (Laragon) ada di
+[backend/README.md](backend/README.md). Belum ada Docker Compose karena
+lingkungan pengembangan ini menjalankan layanan secara lokal.
