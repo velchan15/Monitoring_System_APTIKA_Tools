@@ -89,7 +89,7 @@ function DashboardContent() {
     { key: "maintenance", label: "Maintenance", value: "0", subtext: "Tidak ada jadwal pemeliharaan", variant: "maintenance" },
   ]);
 
-  // Fungsi untuk menarik data dari API backend
+  // Fungsi untuk menarik data dari API backend dengan penanganan status yang fleksibel
   const fetchAppMetrics = async () => {
     try {
       const res = await fetch("http://localhost:3001/api/applications");
@@ -98,10 +98,11 @@ function DashboardContent() {
 
       if (Array.isArray(data)) {
         const total = data.length;
-        const online = data.filter((a) => a.status === "ONLINE").length;
-        const warning = data.filter((a) => a.status === "WARNING").length;
-        const offline = data.filter((a) => a.status === "OFFLINE").length;
-        const maintenance = data.filter((a) => a.status === "MAINTENANCE").length;
+        // Jika status kosong/null, otomatis dikategorikan sebagai ONLINE agar langsung muncul
+        const online = data.filter((a: any) => !a.status || a.status === "ONLINE" || a.status === "NORMAL").length;
+        const warning = data.filter((a: any) => a.status === "WARNING").length;
+        const offline = data.filter((a: any) => a.status === "OFFLINE" || a.status === "CRITICAL").length;
+        const maintenance = data.filter((a: any) => a.status === "MAINTENANCE").length;
 
         const onlinePct = total > 0 ? ((online / total) * 100).toFixed(2) : "0";
         const offlinePct = total > 0 ? ((offline / total) * 100).toFixed(2) : "0";
@@ -121,13 +122,8 @@ function DashboardContent() {
 
   // AUTO REFRESH SETIAP 30 DETIK
   useEffect(() => {
-    // Ambil data pertama kali saat komponen dimuat
     fetchAppMetrics();
-
-    // Jalankan interval setiap 30.000 milidetik (30 detik)
     const intervalId = setInterval(fetchAppMetrics, 30 * 1000);
-
-    // Hentikan interval saat halaman ditutup/pindah tab untuk menghemat memori
     return () => clearInterval(intervalId);
   }, []);
 
@@ -170,10 +166,10 @@ function DashboardContent() {
               </div>
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
                 <div className="xl:col-span-3" style={{ minHeight: 320 }}>
-                  <StatusTrendChart title="Grafik Status Aplikasi" />
+                  <StatusTrendChart title="Grafik Status Aplikasi" appMetrics={appMetrics} />
                 </div>
                 <div className="xl:col-span-2" style={{ minHeight: 320 }}>
-                  <StatusDonutChart />
+                  <StatusDonutChart appMetrics={appMetrics} />
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">

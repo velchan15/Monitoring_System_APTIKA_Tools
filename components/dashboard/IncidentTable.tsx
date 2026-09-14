@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AlertOctagon, AlertTriangle, CheckCircle2, Eye, Info } from "lucide-react";
 
 import { useAuth } from "@/lib/auth-context";
 import {
-  initialIncidents,
   type IncidentItem,
   type IncidentSeverity,
   type IncidentStatus,
@@ -31,13 +30,62 @@ const severityBadges: Record<IncidentSeverity, { label: string; class: string }>
   info:     { label: "Online",  class: "bg-emerald-100 text-emerald-700 border-emerald-200" },
 };
 
+// Custom Hook untuk menarik data aplikasi bermasalah dari database
+function useLiveIncidents() {
+  const [incidents, setIncidents] = useState<IncidentItem[]>([]);
+
+  const fetchTroubledApps = async () => {
+    try {
+      const res = await fetch("http://localhost:3001/api/applications");
+      const json = await res.json();
+      const data = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+
+      // Filter hanya aplikasi yang bermasalah
+      const troubled = data.filter((a: any) => 
+        a.status === "OFFLINE" || a.status === "CRITICAL" || a.status === "WARNING"
+      );
+
+      // Ubah format data dari database menjadi struktur IncidentItem
+      const formattedData: IncidentItem[] = troubled.map((app: any) => ({
+        id: String(app.id),
+        ticketNumber: `INC-2026-${String(app.id).padStart(4, '0')}`,
+        appName: app.name,
+        opdName: app.department?.name || "Pemerintah Provinsi Jawa Barat",
+        opdCode: app.department?.code || "JBR",
+        severity: (app.status === "OFFLINE" || app.status === "CRITICAL") ? "critical" : "major",
+        status: "open",
+        startedAt: "Hari ini, " + new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB",
+        duration: "Sedang Berlangsung",
+        description: `Sistem mendeteksi layanan ${app.name} berstatus ${app.status}. Tim terkait perlu melakukan pengecekan pada infrastruktur jaringan atau server.`,
+        timeline: [
+          { time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB", note: "Sistem mendeteksi gangguan akses." }
+        ],
+        // Persiapan pemanggilan endpoint Playwright di backend
+        screenshotUrl: `http://localhost:3001/api/screenshot?url=${encodeURIComponent(app.url)}`
+      }));
+
+      setIncidents(formattedData);
+    } catch (error) {
+      console.error("Gagal menarik data gangguan:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchTroubledApps();
+    const interval = setInterval(fetchTroubledApps, 30000); // Auto refresh 30 detik
+    return () => clearInterval(interval);
+  }, []);
+
+  return { incidents, setIncidents };
+}
+
 // ---- Compact version for Dashboard overview ----
 interface DashboardIncidentProps {
   limit?: number;
 }
 
 export function DashboardIncidentList({ limit = 5 }: DashboardIncidentProps) {
-  const [incidents, setIncidents] = useState<IncidentItem[]>(initialIncidents);
+  const { incidents, setIncidents } = useLiveIncidents();
   const [selectedIncident, setSelectedIncident] = useState<IncidentItem | null>(null);
   const [isModalOpen, setModalOpen] = useState(false);
 
@@ -66,7 +114,6 @@ export function DashboardIncidentList({ limit = 5 }: DashboardIncidentProps) {
         </div>
       </div>
 
-      {/* Table */}
       <div className="flex-1 overflow-x-auto">
         <table className="w-full text-left text-xs">
           <thead>
@@ -80,54 +127,58 @@ export function DashboardIncidentList({ limit = 5 }: DashboardIncidentProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border/60">
-            {displayed.map((inc) => {
-              const sev = severityBadges[inc.severity];
-              return (
-                <tr key={inc.id} className="transition-colors hover:bg-canvas/40 group">
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <AppIcon name={inc.appName} opdName={inc.opdName} />
-                      <span className="font-medium text-ink line-clamp-1 max-w-[160px]">{inc.appName}</span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5 text-ink/65 max-w-[120px]">
-                    <span className="line-clamp-1">{inc.opdName.replace(/Dinas |Badan /, "")}</span>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold", sev.class)}>
-                      {sev.label}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5 font-mono text-[11px] text-ink/60 whitespace-nowrap">
-                    {inc.startedAt.split(",")[1]?.trim() || inc.startedAt}
-                  </td>
-                  <td className="px-3 py-2.5 text-[11px] text-ink/60 whitespace-nowrap">
-                    {inc.duration.replace(" (Selesai)", "")}
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    <button
-                      type="button"
-                      onClick={() => { setSelectedIncident(inc); setModalOpen(true); }}
-                      className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-ink/70 hover:bg-canvas hover:text-ink"
-                    >
-                      <Eye className="h-3 w-3" />
-                      Details
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
+            {displayed.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-ink/50 font-medium">
+                  Semua sistem beroperasi normal. Tidak ada gangguan yang terdeteksi.
+                </td>
+              </tr>
+            ) : (
+              displayed.map((inc) => {
+                const sev = severityBadges[inc.severity];
+                return (
+                  <tr key={inc.id} className="transition-colors hover:bg-canvas/40 group">
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <AppIcon name={inc.appName} opdName={inc.opdName} />
+                        <span className="font-medium text-ink line-clamp-1 max-w-[160px]">{inc.appName}</span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-ink/65 max-w-[120px]">
+                      <span className="line-clamp-1">{inc.opdName.replace(/Dinas |Badan /, "")}</span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold", sev.class)}>
+                        {sev.label}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-[11px] text-ink/60 whitespace-nowrap">
+                      {inc.startedAt.split(",")[1]?.trim() || inc.startedAt}
+                    </td>
+                    <td className="px-3 py-2.5 text-[11px] text-ink/60 whitespace-nowrap">
+                      {inc.duration.replace(" (Selesai)", "")}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedIncident(inc); setModalOpen(true); }}
+                        className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium text-ink/70 hover:bg-canvas hover:text-ink"
+                      >
+                        <Eye className="h-3 w-3" />
+                        Details
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* Footer link */}
       <div className="border-t border-border px-4 py-2.5">
-        <button
-          type="button"
-          className="text-xs font-semibold text-brand hover:underline"
-        >
-          Lihat Semua Gangguan →
+        <button type="button" className="text-xs font-semibold text-brand hover:underline">
+          Licat Semua Gangguan →
         </button>
       </div>
 
@@ -149,7 +200,7 @@ interface IncidentTableProps {
 
 export function IncidentTable({ limit, showTitleHeader = true }: IncidentTableProps) {
   const { canManageIncidents } = useAuth();
-  const [incidents, setIncidents] = useState<IncidentItem[]>(initialIncidents);
+  const { incidents, setIncidents } = useLiveIncidents();
   const [selectedIncident, setSelectedIncident] = useState<IncidentItem | null>(null);
   const [isModalOpen, setModalOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -217,61 +268,69 @@ export function IncidentTable({ limit, showTitleHeader = true }: IncidentTablePr
             </tr>
           </thead>
           <tbody className="divide-y divide-border/60">
-            {displayed.map((inc) => {
-              const sev = severityBadges[inc.severity];
-              const canEdit = canManageIncidents(inc.opdCode);
-              return (
-                <tr key={inc.id} className="hover:bg-canvas/40 transition-colors">
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-2.5">
-                      <AppIcon name={inc.appName} opdName={inc.opdName} />
-                      <div>
-                        <p className="font-medium text-ink line-clamp-1">{inc.appName}</p>
-                        <p className="text-[11px] text-ink/45 font-mono">{inc.ticketNumber}</p>
+            {displayed.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-5 py-10 text-center text-ink/50 font-medium">
+                  Belum ada laporan insiden pada rentang waktu ini.
+                </td>
+              </tr>
+            ) : (
+              displayed.map((inc) => {
+                const sev = severityBadges[inc.severity];
+                const canEdit = canManageIncidents(inc.opdCode);
+                return (
+                  <tr key={inc.id} className="hover:bg-canvas/40 transition-colors">
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <AppIcon name={inc.appName} opdName={inc.opdName} />
+                        <div>
+                          <p className="font-medium text-ink line-clamp-1">{inc.appName}</p>
+                          <p className="text-[11px] text-ink/45 font-mono">{inc.ticketNumber}</p>
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-3 py-3 text-ink/70">{inc.opdName.replace(/Dinas |Badan /, "")}</td>
-                  <td className="px-3 py-3">
-                    <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold", sev.class)}>
-                      {sev.label}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3 font-mono text-[11px] text-ink/60 whitespace-nowrap">
-                    {inc.startedAt.split(",")[1]?.trim() || inc.startedAt}
-                  </td>
-                  <td className="px-3 py-3 text-[11px] text-ink/60 whitespace-nowrap">{inc.duration}</td>
-                  <td className="px-3 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => { setSelectedIncident(inc); setModalOpen(true); }}
-                        className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-ink/70 hover:bg-canvas"
-                      >
-                        <Eye className="h-3 w-3" />
-                        Detail
-                      </button>
-                      {canEdit && inc.status !== "resolved" && (
+                    </td>
+                    <td className="px-3 py-3 text-ink/70">{inc.opdName.replace(/Dinas |Badan /, "")}</td>
+                    <td className="px-3 py-3">
+                      <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold", sev.class)}>
+                        {sev.label}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 font-mono text-[11px] text-ink/60 whitespace-nowrap">
+                      {inc.startedAt.split(",")[1]?.trim() || inc.startedAt}
+                    </td>
+                    <td className="px-3 py-3 text-[11px] text-ink/60 whitespace-nowrap">{inc.duration}</td>
+                    <td className="px-3 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
-                          onClick={() => handleUpdateStatus(inc.id, "resolved")}
-                          className="inline-flex items-center gap-1 rounded-md bg-emerald-100 border border-emerald-200 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-200"
+                          onClick={() => { setSelectedIncident(inc); setModalOpen(true); }}
+                          className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-ink/70 hover:bg-canvas"
                         >
-                          <CheckCircle2 className="h-3 w-3" />
-                          Selesai
+                          <Eye className="h-3 w-3" />
+                          Detail
                         </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+                        {canEdit && inc.status !== "resolved" && (
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateStatus(inc.id, "resolved")}
+                            className="inline-flex items-center gap-1 rounded-md bg-emerald-100 border border-emerald-200 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-200"
+                          >
+                            <CheckCircle2 className="h-3 w-3" />
+                            Selesai
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
 
       <div className="flex items-center justify-between border-t border-border px-5 py-3 text-xs text-ink/45">
-        <span>Menampilkan {displayed.length} dari {incidents.length} insiden</span>
+        <span>Menampilkan {displayed.length} dari {incidents.length} insiden aktif</span>
         <span>Sistem Pelaporan Terpadu — Diskominfo Jawa Barat</span>
       </div>
 

@@ -68,6 +68,7 @@ model Application {
   url                  String                @db.VarChar(500)
   monitoringType       String                @default("HTTP") @map("monitoring_type") @db.VarChar(20)
   expectedKeyword      String?               @map("expected_keyword") @db.VarChar(100)
+  status               String?
   intervalSeconds      Int                   @default(300) @map("interval_seconds")
   priority             String                @default("MEDIUM") @db.VarChar(20)
   showOnStatusPage     Boolean               @default(true) @map("show_on_status_page")

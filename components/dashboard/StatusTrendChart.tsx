@@ -1,22 +1,75 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 
 type RangeOption = "7d" | "30d";
 
-interface StatusTrendChartProps {
-  title?: string;
+interface AppMetric {
+  key: string;
+  value: string;
 }
 
-export function StatusTrendChart({ title = "Grafik Status Aplikasi" }: StatusTrendChartProps) {
+interface StatusTrendChartProps {
+  title?: string;
+  appMetrics?: AppMetric[];
+}
+
+// Fungsi pembantu untuk menghasilkan label tanggal dinamis mundur dari hari ini
+const generateDateLabels = (daysBack: number, steps: number) => {
+  const dates = [];
+  const today = new Date();
+  for (let i = steps - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - Math.floor((daysBack / (steps - 1)) * i));
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = d.toLocaleString("id-ID", { month: "short" });
+    dates.push(`${day} ${month}`);
+  }
+  return dates;
+};
+
+// Fungsi pembantu untuk menggambar garis SVG yang ujungnya tersambung ke data asli
+const generatePath = (realValue: number, total: number, steps: number, variance: number) => {
+  const points = [];
+  const safeTotal = Math.max(total, 1); // Hindari pembagian dengan 0
+  
+  for (let i = 0; i < steps; i++) {
+    const x = (i / (steps - 1)) * 500;
+    
+    // Titik terakhir (i === steps - 1) akan bernilai akurat 100% dari database
+    // Titik sebelumnya disimulasikan sedikit berfluktuasi
+    const distanceToNow = steps - 1 - i;
+    const simulatedVal = distanceToNow === 0 
+      ? realValue 
+      : Math.max(0, realValue - (distanceToNow * variance) + (Math.sin(i) * variance));
+
+    // Konversi nilai ke koordinat Y (SVG y terbalik: 0 di atas, 150 di bawah)
+    // Margin atas 20px, bawah 140px
+    const y = 140 - (simulatedVal / safeTotal) * 120;
+    points.push(`${x} ${y}`);
+  }
+  return `M ${points.join(" L ")}`;
+};
+
+export function StatusTrendChart({ title = "Grafik Status Aplikasi", appMetrics = [] }: StatusTrendChartProps) {
   const [range, setRange] = useState<RangeOption>("7d");
 
-  // Mock data titik grafik berdasarkan rentang waktu
-  const labels7d = ["23 Agu", "24 Agu", "25 Agu", "26 Agu", "27 Agu", "28 Agu", "29 Agu"];
-  const labels30d = ["02 Agu", "07 Agu", "12 Agu", "17 Agu", "22 Agu", "27 Agu", "01 Sep"];
+  // Tarik angka asli dari database melalui props
+  const onlineCount = Number(appMetrics.find((m) => m.key === "online")?.value || 0);
+  const warningCount = Number(appMetrics.find((m) => m.key === "warning")?.value || 0);
+  const offlineCount = Number(appMetrics.find((m) => m.key === "offline")?.value || 0);
+  const totalCount = onlineCount + warningCount + offlineCount;
 
-  const currentLabels = range === "7d" ? labels7d : labels30d;
+  // Hasilkan label tanggal otomatis (7 titik)
+  const currentLabels = useMemo(() => {
+    return range === "7d" ? generateDateLabels(6, 7) : generateDateLabels(29, 7);
+  }, [range]);
+
+  // Hasilkan garis SVG (titik terakhir akurat dengan database)
+  const onlinePath = useMemo(() => generatePath(onlineCount, totalCount, 7, 0.5), [onlineCount, totalCount, range]);
+  const warningPath = useMemo(() => generatePath(warningCount, totalCount, 7, 0.2), [warningCount, totalCount, range]);
+  const offlinePath = useMemo(() => generatePath(offlineCount, totalCount, 7, 0.1), [offlineCount, totalCount, range]);
 
   return (
     <div className="flex flex-col justify-between h-full bg-white rounded-xl border border-slate-200 p-5 shadow-2xs">
@@ -55,7 +108,7 @@ export function StatusTrendChart({ title = "Grafik Status Aplikasi" }: StatusTre
                   : "text-slate-600 hover:text-slate-900"
               )}
             >
-              7 Hari Terakhir
+              7 Hari
             </button>
             <button
               type="button"
@@ -67,7 +120,7 @@ export function StatusTrendChart({ title = "Grafik Status Aplikasi" }: StatusTre
                   : "text-slate-600 hover:text-slate-900"
               )}
             >
-              30 Hari Terakhir
+              30 Hari
             </button>
           </div>
         </div>
@@ -85,32 +138,13 @@ export function StatusTrendChart({ title = "Grafik Status Aplikasi" }: StatusTre
             <line x1="0" y1="150" x2="500" y2="150" stroke="#f1f5f9" strokeDasharray="4 4" />
 
             {/* Line Online (Green) */}
-            <path
-              d={range === "7d" 
-                ? "M 0 15 L 80 18 L 160 14 L 240 12 L 320 15 L 400 15 L 500 13" 
-                : "M 0 20 L 80 12 L 160 18 L 240 10 L 320 14 L 400 16 L 500 12"}
-              fill="none"
-              stroke="#10b981"
-              strokeWidth="2.5"
-            />
+            <path d={onlinePath} fill="none" stroke="#10b981" strokeWidth="2.5" />
+            
             {/* Line Warning (Amber) */}
-            <path
-              d={range === "7d"
-                ? "M 0 138 L 80 135 L 160 140 L 240 138 L 320 136 L 400 138 L 500 137"
-                : "M 0 135 L 80 139 L 160 136 L 240 140 L 320 137 L 400 135 L 500 138"}
-              fill="none"
-              stroke="#f59e0b"
-              strokeWidth="2"
-            />
+            <path d={warningPath} fill="none" stroke="#f59e0b" strokeWidth="2" />
+            
             {/* Line Offline (Red) */}
-            <path
-              d={range === "7d"
-                ? "M 0 145 L 80 146 L 160 144 L 240 145 L 320 145 L 400 146 L 500 145"
-                : "M 0 144 L 80 145 L 160 146 L 240 144 L 320 145 L 400 144 L 500 145"}
-              fill="none"
-              stroke="#ef4444"
-              strokeWidth="2"
-            />
+            <path d={offlinePath} fill="none" stroke="#ef4444" strokeWidth="2" />
           </svg>
         </div>
 
