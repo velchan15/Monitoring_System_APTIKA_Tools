@@ -1,19 +1,22 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
+import { AddApplicationModal } from "@/components/dashboard/AddApplicationModal";
 import {
+  Plus,
   ExternalLink,
   Globe,
   Search,
   ShieldAlert,
   ShieldCheck,
   Zap,
+  Trash2,
+  X as XIcon,
 } from "lucide-react";
 
 import { type ServiceStatus } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
 
-// Definisi struktur data yang disesuaikan untuk UI
 interface UptimeService {
   id: string;
   name: string;
@@ -35,9 +38,9 @@ const statusConfig: Record<ServiceStatus, { dot: string; bar: string }> = {
   maintenance: { dot: "bg-status-maintenance",  bar: "bg-status-maintenance" },
 };
 
-// Custom Hook untuk menarik data dari API dan memetakan formatnya
 function useLiveUptimeServices() {
   const [services, setServices] = useState<UptimeService[]>([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     const fetchApps = async () => {
@@ -47,27 +50,26 @@ function useLiveUptimeServices() {
         const data = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
 
         const mappedData: UptimeService[] = data.map((app: any) => {
-          // Menyesuaikan format status
           const statusRaw = app.status ? app.status.toUpperCase() : "ONLINE";
           let statusStr: ServiceStatus = "online";
           if (["WARNING", "DEGRADED"].includes(statusRaw)) statusStr = "warning";
-          if (["OFFLINE", "CRITICAL"].includes(statusRaw)) statusStr = "offline";
+          if (["OFFLINE", "CRITICAL", "DOWN"].includes(statusRaw)) statusStr = "offline";
           if (statusRaw === "MAINTENANCE") statusStr = "maintenance";
 
-          // Ambil persentase uptime dari DB (default 100 jika kosong)
-          const uptime = app.uptimePercent != null ? Number(app.uptimePercent) : 100;
+          const uptime = app.uptimePercent != null ? Number(app.uptimePercent) : (app.uptimePercentage != null ? Number(app.uptimePercentage) : 100);
+          const currentLatency = app.latency != null ? app.latency : (app.avgResponseMs != null ? app.avgResponseMs : 0);
 
-          // Simulasi riwayat 30 hari untuk visualisasi balok (agar UI tetap cantik)
           const history30d = Array.from({ length: 30 }).map((_, i) => {
             const date = new Date();
             date.setDate(date.getDate() - (29 - i));
-            
-            // Logika simulasi: Jika uptime < 100%, sisipkan titik merah/kuning acak di history
-            const isDown = uptime < 100 && Math.random() > (uptime / 100);
+            const isToday = i === 29;
+            const dayStatus = isToday ? statusStr : "online";
+            const dayUptime = isToday ? uptime : 100;
+
             return {
               date: date.toLocaleDateString("id-ID", { day: "2-digit", month: "short" }),
-              status: (isDown ? (Math.random() > 0.5 ? "offline" : "warning") : "online") as ServiceStatus,
-              uptimePercent: isDown ? Math.floor(Math.random() * 50) + 40 : 100,
+              status: dayStatus,
+              uptimePercent: dayUptime,
             };
           });
 
@@ -79,9 +81,9 @@ function useLiveUptimeServices() {
             url: app.url || "https://jabarprov.go.id",
             status: statusStr,
             uptime30Days: uptime,
-            currentLatencyMs: Math.floor(Math.random() * 80) + 20, // Simulasi ping
+            currentLatencyMs: currentLatency,
             sslStatus: "valid" as const,
-            sslExpiryDays: Math.floor(Math.random() * 60) + 15,
+            sslExpiryDays: 90,
             history30d,
           };
         });
@@ -93,23 +95,27 @@ function useLiveUptimeServices() {
     };
 
     fetchApps();
-    const interval = setInterval(fetchApps, 30000); // Auto-refresh 30 detik
+    const interval = setInterval(fetchApps, 30000); 
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshTrigger]); 
 
-  return services;
+  return { 
+    services, 
+    refresh: () => {
+      setRefreshTrigger((prev) => prev + 1);
+      window.dispatchEvent(new Event("appDataChanged"));
+    } 
+  };
 }
 
-// ---- Compact top-uptime for Dashboard ----
 interface TopUptimeProps {
   limit?: number;
   onViewAll?: () => void;
 }
 
 export function TopUptimeWidget({ limit = 6, onViewAll }: TopUptimeProps) {
-  const liveServices = useLiveUptimeServices();
+  const { services: liveServices } = useLiveUptimeServices();
   
-  // Mengurutkan data berdasarkan uptime tertinggi ke terendah secara real-time
   const sorted = [...liveServices].sort((a, b) => b.uptime30Days - a.uptime30Days);
   const displayed = sorted.slice(0, limit);
   const maxUptime = 100;
@@ -139,23 +145,16 @@ export function TopUptimeWidget({ limit = 6, onViewAll }: TopUptimeProps) {
 
             return (
               <div key={srv.id} className="flex items-center gap-3 py-2.5 hover:bg-canvas/40 transition-colors rounded-lg px-2 -mx-2">
-                {/* Status dot */}
                 <span className={cn("h-2 w-2 shrink-0 rounded-full", st.dot)} />
-
-                {/* Service name */}
                 <span className="flex-1 truncate text-xs font-medium text-ink">
                   {srv.name.replace(/\s*\(.*?\)/g, "").trim()}
                 </span>
-
-                {/* Progress bar */}
                 <div className="w-28 shrink-0 overflow-hidden rounded-full bg-canvas h-2 border border-border/50">
                   <div
                     className={cn("h-full rounded-full transition-all duration-500", st.bar)}
                     style={{ width: `${barWidth}%` }}
                   />
                 </div>
-
-                {/* Uptime % */}
                 <span className="w-14 shrink-0 text-right font-mono text-[11px] font-bold text-ink">
                   {srv.uptime30Days.toFixed(2)}%
                 </span>
@@ -168,14 +167,29 @@ export function TopUptimeWidget({ limit = 6, onViewAll }: TopUptimeProps) {
   );
 }
 
-// ---- Full UptimeList page ----
 export function UptimeList() {
-  const liveServices = useLiveUptimeServices();
+  const { services: liveServices, refresh } = useLiveUptimeServices();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [hoveredBar, setHoveredBar] = useState<{ serviceId: string; dayIndex: number; date: string; uptimePercent: number } | null>(null);
+  
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  // Filter daftar halaman penuh
+  const handleDeleteApp = async (id: string, name: string) => {
+    if (window.confirm(`Apakah kamu yakin ingin menghapus aplikasi "${name}"?`)) {
+      try {
+        const res = await fetch(`http://localhost:3001/api/applications/${id}`, {
+          method: "DELETE",
+        });
+
+        if (!res.ok) throw new Error("Gagal menghapus aplikasi dari server");
+        refresh();
+      } catch (err: any) {
+        alert(err.message || "Terjadi kesalahan saat menghapus");
+      }
+    }
+  };
+
   const filtered = useMemo(() => {
     return liveServices.filter((srv) => {
       if (searchQuery.trim()) {
@@ -191,16 +205,29 @@ export function UptimeList() {
     <div className="space-y-4">
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-white p-3 shadow-2xs">
+        
+        {/* Kolom Search dengan Tombol Clear (X) */}
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-ink/40" />
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-ink/40 pointer-events-none" />
           <input
             type="text"
             placeholder="Cari layanan, instansi, atau URL..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-lg border border-border bg-canvas py-1.5 pl-8 pr-3 text-xs text-ink placeholder:text-ink/40 focus:border-brand focus:outline-none"
+            className="w-full rounded-lg border border-border bg-canvas py-1.5 pl-8 pr-8 text-xs text-ink placeholder:text-ink/40 focus:border-brand focus:outline-none"
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-2 text-ink/40 hover:text-ink p-0.5 rounded-full hover:bg-slate-200/60 transition"
+              title="Hapus pencarian"
+            >
+              <XIcon className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
+
         <div className="flex rounded-lg border border-border overflow-hidden">
           {[
             { k: "all", l: "Semua" },
@@ -222,6 +249,15 @@ export function UptimeList() {
             </button>
           ))}
         </div>
+
+        {/* TOMBOL TAMBAH WEBSITE */}
+        <button
+          onClick={() => setIsAddModalOpen(true)}
+          className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 md:px-4 md:py-1.5 text-xs font-semibold rounded-lg shadow-sm transition-colors whitespace-nowrap ml-auto"
+        >
+          <Plus className="w-4 h-4" />
+          Tambah Website
+        </button>
       </div>
 
       {/* Services list */}
@@ -235,14 +271,13 @@ export function UptimeList() {
 
               return (
                 <div key={service.id} className="p-4 hover:bg-canvas/40 transition-colors">
-                  {/* Row 1: info + stats */}
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", st.dot)} />
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-ink">{service.name}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="rounded bg-canvas px-1.5 py-0.5 text-[10px] font-bold text-ink/60 border border-border">{service.opdCode}</span>
+                          <span className="rounded bg-canvas px-1.5 py-0.5 text-[10px] font-bold text-ink/60 border border-border uppercase">{service.opdCode}</span>
                           <a href={service.url} target="_blank" rel="noreferrer" className="flex items-center gap-0.5 font-mono text-[11px] text-brand hover:underline">
                             <Globe className="h-3 w-3" />
                             {service.url}
@@ -251,7 +286,7 @@ export function UptimeList() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-5 shrink-0">
+                    <div className="flex items-center gap-4 shrink-0">
                       <div className="text-right">
                         <p className="text-[10px] uppercase tracking-wider text-ink/40 font-semibold">Ping</p>
                         <p className="font-mono text-xs font-bold text-ink flex items-center gap-0.5">
@@ -270,10 +305,18 @@ export function UptimeList() {
                         <p className="text-[10px] uppercase tracking-wider text-ink/40 font-semibold">SLA 30H</p>
                         <p className="font-mono text-sm font-bold text-ink">{service.uptime30Days.toFixed(2)}%</p>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteApp(service.id, service.name)}
+                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-2"
+                        title="Hapus Aplikasi"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
 
-                  {/* Row 2: 30-day bar strip */}
                   <div className="mt-3">
                     <div className="flex items-end gap-0.5">
                       {service.history30d.map((day, idx) => {
@@ -309,6 +352,15 @@ export function UptimeList() {
           )}
         </div>
       </div>
+
+      <AddApplicationModal 
+        isOpen={isAddModalOpen} 
+        onClose={() => setIsAddModalOpen(false)} 
+        onSuccess={() => {
+          refresh();
+        }} 
+      />
+      
     </div>
   );
 }

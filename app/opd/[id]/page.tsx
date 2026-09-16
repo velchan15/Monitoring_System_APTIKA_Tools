@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
-import { initialOpdSummaries, getApplicationsByOpd } from "@/lib/dashboard-data";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { 
   Server, 
   Activity, 
@@ -18,14 +17,35 @@ import {
   Info,
   X,
   Calendar,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Loader2
 } from "lucide-react";
+
+// Tipe data berdasarkan response API
+interface Application {
+  id: string;
+  name: string;
+  url: string;
+  status: "ONLINE" | "WARNING" | "OFFLINE";
+  department?: {
+    id: string;
+    code: string;
+    name: string;
+  };
+  latency?: number;
+  uptimePercent?: number;
+  lastChecked?: string;
+}
 
 export default function OpdDetailPage() {
   const params = useParams();
-  const opdId = params.id as string;
+  const router = useRouter();
+  const opdId = (params.id as string).toLowerCase();
 
-  // Deklarasi state selectedApp (mencegah error is not defined)
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
   const [selectedApp, setSelectedApp] = useState<{
     name: string;
     url: string;
@@ -34,7 +54,7 @@ export default function OpdDetailPage() {
 
   const closeModal = useCallback(() => setSelectedApp(null), []);
 
-  // Modal accessibility: scroll lock, Escape key, click-outside handled in JSX
+  // Modal accessibility
   useEffect(() => {
     if (!selectedApp) return;
     const prev = document.body.style.overflow;
@@ -47,16 +67,94 @@ export default function OpdDetailPage() {
     };
   }, [selectedApp, closeModal]);
 
-  const opd = initialOpdSummaries.find(
-    (item) => item.code.toLowerCase() === opdId.toLowerCase()
-  );
-  const apps = getApplicationsByOpd(opdId);
+  // Fetch data dari API Backend
+  useEffect(() => {
+    const fetchApps = async () => {
+      setIsLoading(true);
+      try {
+        const res = await fetch("http://localhost:3001/api/applications");
+        if (!res.ok) throw new Error("Gagal mengambil data dari server");
+        
+        const jsonRes = await res.json();
+        const data = jsonRes.data || jsonRes;
+        
+        if (Array.isArray(data)) {
+          // Filter hanya aplikasi milik OPD ini
+          const filteredApps = data.filter(
+            (app: Application) => app.department?.code?.toLowerCase() === opdId
+          );
+          setApplications(filteredApps);
+        }
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  if (!opd) {
+    fetchApps();
+  }, [opdId]);
+
+  // Kalkulasi Metrik OPD dari data asli
+  const opdMetrics = useMemo(() => {
+    if (applications.length === 0) return null;
+
+    // Ambil nama departemen dari aplikasi pertama (karena semua di-filter dari OPD yg sama)
+    const deptName = applications[0].department?.name || opdId.toUpperCase();
+    const deptCode = applications[0].department?.code || opdId;
+
+    let online = 0, warning = 0, offline = 0;
+    let totalLatency = 0, totalUptime = 0, appsWithMetrics = 0;
+
+    applications.forEach(app => {
+      // Normalisasi status
+      const status = (!app.status || app.status as any === "NORMAL") ? "ONLINE" : app.status;
+      if (status === "ONLINE") online++;
+      else if (status === "WARNING") warning++;
+      else if (status === "OFFLINE" || status as any === "CRITICAL" || status as any === "DOWN") offline++;
+
+      const latency = (app as any).latency || (app as any).avgResponseMs || 0;
+      const uptime = (app as any).uptimePercent || (app as any).uptimePercentage || 100;
+
+      totalLatency += latency;
+      totalUptime += uptime;
+      appsWithMetrics++;
+    });
+
+    return {
+      name: deptName,
+      code: deptCode,
+      category: "Sektor Pemerintahan", // Sementara statis karena tidak ada di tabel department
+      totalApps: applications.length,
+      onlineApps: online,
+      warningApps: warning,
+      offlineApps: offline,
+      avgLatencyMs: appsWithMetrics > 0 ? Math.round(totalLatency / appsWithMetrics) : 0,
+      avgUptime: appsWithMetrics > 0 ? (totalUptime / appsWithMetrics) : 100,
+      healthStatus: offline > 0 ? "critical" : warning > 0 ? "warning" : "healthy",
+      // Data kontak belum ada di schema database, dikosongkan sementara
+      picName: "Belum Diatur",
+      picEmail: "-",
+      picPhone: "-",
+    };
+  }, [applications, opdId]);
+
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <Loader2 className="w-8 h-8 animate-spin text-teal-600" />
+      </div>
+    );
+  }
+
+  if (error || !opdMetrics) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-slate-700">
         <h1 className="text-2xl font-bold mb-2">Perangkat Daerah Tidak Ditemukan</h1>
-        <p className="text-slate-500 mb-6">Kode OPD ({opdId}) tidak valid atau belum terdaftar.</p>
+        <p className="text-slate-500 mb-6">
+          {error || `Tidak ada data aplikasi untuk kode OPD (${opdId.toUpperCase()}).`}
+        </p>
         <button 
           onClick={() => window.close()} 
           className="px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition"
@@ -67,7 +165,7 @@ export default function OpdDetailPage() {
     );
   }
 
-  // Data Rekap Status 7 Hari Terakhir
+  // Data Rekap Status 7 Hari Terakhir (Statis untuk UI Mockup)
   const last7DaysData = [
     { date: "26 Agu 2026", uptime: "100%", ping: "42ms", status: "Normal" },
     { date: "27 Agu 2026", uptime: "100%", ping: "45ms", status: "Normal" },
@@ -89,10 +187,10 @@ export default function OpdDetailPage() {
               Detail Perangkat Daerah
             </span>
             <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mt-2">
-              {opd.name}
+              {opdMetrics.name}
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              Kode OPD: <span className="font-mono text-slate-700">{opd.code}</span> · {opd.category}
+              Kode OPD: <span className="font-mono text-slate-700 uppercase">{opdMetrics.code}</span>
             </p>
           </div>
           <button
@@ -113,7 +211,7 @@ export default function OpdDetailPage() {
               <span className="text-xs font-medium uppercase tracking-wider">Total Aplikasi</span>
               <Server className="w-5 h-5 text-blue-600" />
             </div>
-            <div className="text-3xl font-bold text-slate-900">{opd.totalApps}</div>
+            <div className="text-3xl font-bold text-slate-900">{opdMetrics.totalApps}</div>
             <p className="text-xs text-slate-400 mt-1">Terdaftar di katalog</p>
           </div>
 
@@ -123,8 +221,10 @@ export default function OpdDetailPage() {
               <span className="text-xs font-medium uppercase tracking-wider">Avg SLA Uptime</span>
               <Activity className="w-5 h-5 text-emerald-600" />
             </div>
-            <div className="text-3xl font-bold text-emerald-600">{opd.avgUptime.toFixed(2)}%</div>
-            <p className="text-xs text-slate-400 mt-1">Rata-rata 30 hari terakhir</p>
+            <div className={`text-3xl font-bold ${opdMetrics.avgUptime < 95 ? 'text-red-600' : 'text-emerald-600'}`}>
+              {opdMetrics.avgUptime.toFixed(2)}%
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Rata-rata uptime hari ini</p>
           </div>
 
           {/* 3. Avg Latensi */}
@@ -133,7 +233,7 @@ export default function OpdDetailPage() {
               <span className="text-xs font-medium uppercase tracking-wider">Avg Latensi</span>
               <Clock className="w-5 h-5 text-amber-600" />
             </div>
-            <div className="text-3xl font-bold text-slate-900">{opd.avgLatencyMs} <span className="text-sm font-normal text-slate-500">ms</span></div>
+            <div className="text-3xl font-bold text-slate-900">{opdMetrics.avgLatencyMs} <span className="text-sm font-normal text-slate-500">ms</span></div>
             <p className="text-xs text-slate-400 mt-1">Waktu respon rata-rata</p>
           </div>
 
@@ -144,37 +244,37 @@ export default function OpdDetailPage() {
               <CheckCircle2 className="w-5 h-5 text-indigo-600" />
             </div>
             <div className="text-3xl font-bold text-slate-900">
-              {opd.onlineApps} <span className="text-sm font-normal text-slate-400">/ {opd.totalApps}</span>
+              {opdMetrics.onlineApps} <span className="text-sm font-normal text-slate-400">/ {opdMetrics.totalApps}</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
               <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span>{opd.onlineApps} Online</span>
-              {opd.offlineApps > 0 && (
+              <span>{opdMetrics.onlineApps} Online</span>
+              {opdMetrics.offlineApps > 0 && (
                 <>
                   <span className="inline-block w-2 h-2 rounded-full bg-red-500 ml-1"></span>
-                  <span>{opd.offlineApps} Offline</span>
+                  <span>{opdMetrics.offlineApps} Offline</span>
                 </>
               )}
             </div>
           </div>
 
           {/* 5. Kontak PIC */}
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between sm:col-span-2 lg:col-span-1">
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between sm:col-span-2 lg:col-span-1 opacity-75">
             <div className="flex items-center justify-between text-slate-500 mb-2">
               <span className="text-xs font-medium uppercase tracking-wider">Kontak PIC</span>
-              <User className="w-5 h-5 text-teal-600" />
+              <User className="w-5 h-5 text-slate-400" />
             </div>
             <div className="space-y-1">
-              <p className="text-xs font-semibold text-slate-900 truncate" title={opd.picName}>
-                {opd.picName}
+              <p className="text-xs font-semibold text-slate-500 italic">
+                {opdMetrics.picName}
               </p>
-              <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                <Phone className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                <span className="truncate">{opd.picPhone}</span>
+              <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                <Phone className="w-3.5 h-3.5" />
+                <span>{opdMetrics.picPhone}</span>
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                <Mail className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                <span className="truncate" title={opd.picEmail}>{opd.picEmail}</span>
+              <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                <Mail className="w-3.5 h-3.5" />
+                <span>{opdMetrics.picEmail}</span>
               </div>
             </div>
           </div>
@@ -184,32 +284,36 @@ export default function OpdDetailPage() {
         {/* Daftar Aplikasi & Uptime Monitor */}
         <div className="space-y-4">
           <h2 className="text-lg font-bold text-slate-900">
-            Daftar Aplikasi & Uptime ({apps.length})
+            Daftar Aplikasi & Uptime ({applications.length})
           </h2>
 
           <div className="space-y-4">
-            {apps.map((app) => {
-              const isOffline = app.status === "DOWN";
-              const isWarning = app.status === "WARNING";
+            {applications.map((app) => {
+              const status = (!app.status || app.status as any === "NORMAL") ? "ONLINE" : app.status;
+              const isOffline = status === "OFFLINE" || status as any === "DOWN" || status as any === "CRITICAL";
+              const isWarning = status === "WARNING";
               
               const statusDotColor = isOffline 
                 ? "bg-red-500" 
                 : isWarning 
                 ? "bg-amber-500" 
                 : "bg-emerald-500";
+              
+              const appLatency = (app as any).latency || (app as any).avgResponseMs || 0;
+              const appUptime = (app as any).uptimePercent || (app as any).uptimePercentage || 100;
 
               return (
                 <div key={app.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs hover:border-slate-300 transition space-y-3">
                   {/* Header Card */}
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                     <div className="flex items-start gap-3">
-                      <span className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${statusDotColor}`} />
+                      <span className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${statusDotColor} motion-safe:animate-pulse`} />
                       <div>
                         <h3 className="text-base font-bold text-slate-900">
                           {app.name}
                         </h3>
                         <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
-                          <span className="font-semibold text-slate-700">{opd.code}</span>
+                          <span className="font-semibold text-slate-700 uppercase">{opdMetrics.code}</span>
                           <span>•</span>
                           <a 
                             href={app.url} 
@@ -230,7 +334,7 @@ export default function OpdDetailPage() {
                       {/* Tombol Detail */}
                       <button
                         type="button"
-                        onClick={() => setSelectedApp({ name: app.name, url: app.url, status: app.status })}
+                        onClick={() => setSelectedApp({ name: app.name, url: app.url, status: status })}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition shadow-xs"
                       >
                         <Info className="w-3.5 h-3.5 text-teal-600" />
@@ -242,7 +346,7 @@ export default function OpdDetailPage() {
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">PING</span>
                         <span className={`font-mono font-bold flex items-center justify-end gap-0.5 ${isOffline ? "text-red-600" : "text-slate-800"}`}>
                           <Zap className="w-3 h-3 text-amber-500" />
-                          {isOffline ? "Timeout" : `${app.latency}ms`}
+                          {isOffline ? "Timeout" : `${appLatency}ms`}
                         </span>
                       </div>
 
@@ -257,9 +361,9 @@ export default function OpdDetailPage() {
 
                       {/* SLA 30H */}
                       <div className="text-right">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">SLA 30H</span>
-                        <span className="font-mono font-bold text-slate-900 text-sm">
-                          {app.uptime.toFixed(2)}%
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">SLA Harian</span>
+                        <span className={`font-mono font-bold text-sm ${appUptime < 95 ? 'text-red-600' : 'text-slate-900'}`}>
+                          {typeof appUptime === 'number' ? appUptime.toFixed(2) : '100.00'}%
                         </span>
                       </div>
                     </div>
@@ -272,8 +376,8 @@ export default function OpdDetailPage() {
                         let barColor = "bg-emerald-500";
                         if (isOffline && i === 29) barColor = "bg-red-500";
                         else if (isWarning && i === 29) barColor = "bg-amber-500";
-                        else if (i === 18 && opd.healthStatus === "critical") barColor = "bg-red-500";
-                        else if (i === 24 && opd.healthStatus !== "healthy") barColor = "bg-amber-500";
+                        else if (i === 18 && opdMetrics.healthStatus === "critical") barColor = "bg-red-500";
+                        else if (i === 24 && opdMetrics.healthStatus !== "healthy") barColor = "bg-amber-500";
 
                         return (
                           <div
@@ -374,10 +478,10 @@ export default function OpdDetailPage() {
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                     <ImageIcon className="w-4 h-4 text-teal-600" />
-                    Tangkapan Layar Terbaru (Hari Ke-7)
+                    Tangkapan Layar Terbaru
                   </h4>
                   <span className="text-[10px] text-teal-700 bg-teal-50 px-2 py-0.5 rounded font-mono font-semibold border border-teal-200">
-                    Auto-overwrite (1 File/App)
+                    Auto-overwrite
                   </span>
                 </div>
 
@@ -385,31 +489,26 @@ export default function OpdDetailPage() {
                   <div className="h-48 bg-slate-200 flex flex-col items-center justify-center text-slate-400 p-4 relative group">
                     <ImageIcon className="w-10 h-10 mb-2 opacity-60" />
                     <span className="text-xs font-semibold text-slate-600">
-                      latest_screenshot.webp
+                      Belum ada tangkapan layar tersedia
                     </span>
                     <span className="text-[10px] text-slate-400 mt-0.5">
-                      Format: WebP (Kompresi Efisien ~50-80 KB)
+                      Menunggu eksekusi worker screenshot berikutnya
                     </span>
-
-                    <div className="absolute inset-0 bg-teal-900/10 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-semibold">
-                      Klik untuk Memperbesar Gambar
-                    </div>
                   </div>
                   
                   <div className="p-3 bg-white border-t border-slate-200 flex justify-between items-center text-xs">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-800">01 Sep 2026 (Hari Terakhir)</span>
-                      <span className="text-[10px] text-slate-400 font-mono">1080x720.webp</span>
+                      <span className="font-semibold text-slate-800">Status Saat Ini</span>
                     </div>
-                    <span className="text-emerald-600 font-mono font-bold text-[11px] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      Terverifikasi
+                    <span className={`font-mono font-bold text-[11px] px-2 py-0.5 rounded border ${
+                      selectedApp.status === "OFFLINE" ? "text-red-700 bg-red-50 border-red-200" :
+                      selectedApp.status === "WARNING" ? "text-amber-700 bg-amber-50 border-amber-200" :
+                      "text-emerald-700 bg-emerald-50 border-emerald-200"
+                    }`}>
+                      {selectedApp.status}
                     </span>
                   </div>
                 </div>
-                
-                <p className="text-[11px] text-slate-400 mt-1.5 italic">
-                  *Gambar screenshot lama otomatis ditimpa file baru setiap akhir siklus 7 hari untuk menghemat penggunaan storage server.
-                </p>
               </div>
 
             </div>

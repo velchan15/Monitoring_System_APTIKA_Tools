@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Server,
@@ -68,13 +68,47 @@ export function MonitoringSidebar({
   unreadNotifCount = 0,
 }: MonitoringSidebarProps) {
   const { user, isSuperAdmin } = useAuth();
+  const [totalAppsCount, setTotalAppsCount] = useState<number | null>(null);
+
+  const fetchAppCount = async () => {
+    try {
+      const res = await fetch("http://localhost:3001/api/applications");
+      const json = await res.json();
+      const data = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
+      setTotalAppsCount(data.length);
+    } catch (error) {
+      console.error("Gagal mengambil jumlah total aplikasi untuk sidebar:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchAppCount();
+    const interval = setInterval(fetchAppCount, 30000);
+
+    // Menerima event custom agar sidebar langsung update detik itu juga
+    const handleAppChange = () => {
+      fetchAppCount();
+    };
+    window.addEventListener("appDataChanged", handleAppChange);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("appDataChanged", handleAppChange);
+    };
+  }, []);
 
   const navGroups: NavGroup[] = [
     {
       title: "MONITORING UTAMA",
       items: [
         { id: "dashboard", name: "Dashboard", icon: LayoutDashboard },
-        { id: "uptime", name: "Daftar Aplikasi & Uptime", icon: Server, badge: "215", badgeVariant: "neutral" },
+        { 
+          id: "uptime", 
+          name: "Daftar Aplikasi & Uptime", 
+          icon: Server, 
+          badge: totalAppsCount !== null ? String(totalAppsCount) : "...", 
+          badgeVariant: "neutral" 
+        },
         {
           id: "incidents",
           name: "Manajemen Insiden",
@@ -215,7 +249,6 @@ export function MonitoringSidebar({
           </nav>
         </div>
 
-        {/* Footer Profile Sidebar Dinamis */}
         <div className="p-3 border-t border-slate-200 bg-slate-50/60 flex-shrink-0">
           <div className="flex items-center gap-2.5 p-1.5">
             <div className="w-7 h-7 rounded-full bg-teal-600 text-white font-bold flex items-center justify-center text-[11px] shadow-xs flex-shrink-0">

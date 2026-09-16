@@ -89,6 +89,9 @@ function DashboardContent() {
     { key: "maintenance", label: "Maintenance", value: "0", subtext: "Tidak ada jadwal pemeliharaan", variant: "maintenance" },
   ]);
 
+  // State baru untuk menyimpan data lengkap aplikasi
+  const [applicationsData, setApplicationsData] = useState<any[]>([]);
+
   // Fungsi untuk menarik data dari API backend dengan penanganan status yang fleksibel
   const fetchAppMetrics = async () => {
     try {
@@ -97,6 +100,9 @@ function DashboardContent() {
       const data = jsonRes.data || jsonRes;
 
       if (Array.isArray(data)) {
+        // Simpan data mentahnya ke state agar bisa dipakai komponen OPD
+        setApplicationsData(data);
+
         const total = data.length;
         // Jika status kosong/null, otomatis dikategorikan sebagai ONLINE agar langsung muncul
         const online = data.filter((a: any) => !a.status || a.status === "ONLINE" || a.status === "NORMAL").length;
@@ -180,7 +186,12 @@ function DashboardContent() {
                   <TopUptimeWidget limit={6} onViewAll={() => setActiveTab("uptime")} />
                 </div>
               </div>
-              <DashboardOpdSummary onViewAll={() => setActiveTab("opd")} />
+              
+              {/* Me-passing data aplikasi ke DashboardOpdSummary */}
+              <DashboardOpdSummary 
+                applications={applicationsData}
+                onViewAll={() => setActiveTab("opd")} 
+              />
             </>
           )}
 
@@ -201,7 +212,9 @@ function DashboardContent() {
           {activeTab === "opd" && (
             <div className="space-y-4">
               <PageHeader title="Dashboard Perangkat Daerah (OPD)" subtitle="Pemantauan kinerja sistem per instansi Pemerintah Provinsi Jawa Barat" tag="Per OPD" />
-              <OpdSummaryGrid />
+              
+              {/* Me-passing data aplikasi ke OpdSummaryGrid */}
+              <OpdSummaryGrid applications={applicationsData} />
             </div>
           )}
 
