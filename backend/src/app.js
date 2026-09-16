@@ -1,54 +1,106 @@
 const express = require("express");
 const cors = require("cors");
-const { chromium } = require("playwright"); // Impor Playwright di sini
+const fs = require("fs");
+const path = require("path");
+const sharp = require("sharp");
 const authRoutes = require("./routes/auth.routes");
-const userRoutes = require('./routes/user.routes');
-const incidentRoutes = require('./routes/incidentRoutes');
+const userRoutes = require("./routes/user.routes");
+const incidentRoutes = require("./routes/incidentRoutes");
+const applicationRoutes = require("./routes/application.routes");
+const notificationRoutes = require("./routes/notification.routes");
+const { chromium } = require("playwright");
+
+// Folder public/screenshots ada di root project frontend (Next.js), BUKAN di
+// dalam folder backend — jadi dari backend/src/app.js naik 2 level dulu.
+const SCREENSHOTS_ROOT = path.join(__dirname, "..", "..", "public", "screenshots");
+
+function sanitizeSegment(value, fallback) {
+  if (!value) return fallback;
+  const cleaned = String(value)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9-_]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return cleaned || fallback;
+}
 
 function createApp({ readiness = async () => ({ database: "error", redis: "error" }) } = {}) {
   const app = express();
 
   app.use(express.json());
   app.use(cors());
-  app.use('/api/auth', authRoutes);
-  app.use('/api/users', userRoutes);
-  app.use('/api/notifications', require('./routes/notification.routes'));
-
-  const applicationRoutes = require('./routes/application.routes');
-  app.use('/api/applications', applicationRoutes);
-
-  app.use('/api/incidents', incidentRoutes);
 
   // ==========================================
-  // ENDPOINT REAL-TIME SCREENSHOT PLAYWRIGHT
+  // API ROUTES
   // ==========================================
-  app.get('/api/screenshot', async (req, res) => {
+  app.use("/api/auth", authRoutes);
+  app.use("/api/users", userRoutes);
+  app.use("/api/notifications", notificationRoutes);
+  app.use("/api/applications", applicationRoutes);
+  app.use("/api/incidents", incidentRoutes);
+
+  // ==========================================
+  // ENDPOINT REAL-TIME SCREENSHOT PLAYWRIGHT (.webp + simpan ke folder)
+  // ==========================================
+  app.get("/api/screenshot", async (req, res) => {
     const targetUrl = req.query.url;
-    if (!targetUrl) return res.status(400).send('URL diperlukan');
+    if (!targetUrl) return res.status(400).send("URL diperlukan");
+
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.set("Pragma", "no-cache");
+
+    const opdFolder = sanitizeSegment(req.query.opdCode, "misc");
+    const fileName = sanitizeSegment(req.query.appName, "aplikasi") + ".webp";
+    const targetDir = path.join(SCREENSHOTS_ROOT, opdFolder);
+    const targetPath = path.join(targetDir, fileName);
 
     let browser = null;
     try {
       browser = await chromium.launch({ headless: true });
-      const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+      const context = await browser.newContext({
+        viewport: { width: 1280, height: 720 },
+        ignoreHTTPSErrors: true, // banyak domain .go.id sertifikatnya bermasalah
+      });
       const page = await context.newPage();
-      
-      await page.goto(targetUrl, { timeout: 15000, waitUntil: 'domcontentloaded' }).catch(() => {});
-      await page.waitForTimeout(1500);
-      
-      const buffer = await page.screenshot({ fullPage: false });
-      await browser.close();
 
-      res.set('Content-Type', 'image/png');
-      res.send(buffer);
+      // networkidle: tunggu sampai request jaringan reda, penting buat SPA
+      // yang render kontennya belakangan lewat JavaScript.
+      const gotoResult = await page
+        .goto(targetUrl, { timeout: 20000, waitUntil: "networkidle" })
+        .catch((err) => {
+          console.error(`Gagal membuka ${targetUrl}:`, err.message);
+          return null;
+        });
+
+      if (!gotoResult) {
+        console.warn(`⚠️  Navigasi ke ${targetUrl} gagal/timeout — screenshot mungkin blank.`);
+      }
+
+      // Jeda tambahan buat elemen yang masih nge-render (animasi masuk, lazy image, dll)
+      await page.waitForTimeout(2000);
+
+      const pngBuffer = await page.screenshot({ fullPage: false });
+      await browser.close();
+      browser = null;
+
+      const webpBuffer = await sharp(pngBuffer).webp({ quality: 80 }).toBuffer();
+
+      fs.mkdirSync(targetDir, { recursive: true });
+      fs.writeFileSync(targetPath, webpBuffer);
+
+      res.set("Content-Type", "image/webp");
+      res.send(webpBuffer);
     } catch (error) {
       console.error("Gagal ambil screenshot:", error);
       if (browser) await browser.close();
-      res.status(500).send('Gagal');
+      res.status(500).send("Gagal");
     }
   });
-  // ==========================================
 
-  // Health Check Endpoints
+  // ==========================================
+  // HEALTH CHECK ENDPOINTS
+  // ==========================================
   app.get("/api/health/live", (_request, response) => {
     response.status(200).json({
       service: "monitoring-api",
@@ -66,12 +118,7 @@ function createApp({ readiness = async () => ({ database: "error", redis: "error
     });
   });
 
-  // API Routes Tambahan
-  app.use("/api/auth", authRoutes);
-  app.use("/api/applications", applicationRoutes);
-  app.use('/api/incidents', incidentRoutes);
-
-  // 404 Handler (Harus selalu di paling bawah setelah semua route)
+  // 404 Handler (harus selalu di paling bawah, setelah semua route)
   app.use((_request, response) => {
     response.status(404).json({
       error: "not_found",
@@ -79,14 +126,8 @@ function createApp({ readiness = async () => ({ database: "error", redis: "error
     });
   });
 
-  // Jalankan background worker untuk memantau uptime aplikasi
-  const { startUptimeWorker } = require("../workers/uptimeWorker");
-
-  app.listen(3001, () => {
-    console.log("Server backend berjalan di port 3001");
-    startUptimeWorker();
-  });
-
+  // TIDAK ada app.listen() atau startUptimeWorker() di sini —
+  // itu tugasnya server.js, biar port cuma di-bind sekali.
   return app;
 }
 

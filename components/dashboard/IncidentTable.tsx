@@ -61,7 +61,7 @@ function useLiveIncidents() {
           { time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB", note: "Sistem mendeteksi gangguan akses." }
         ],
         // Persiapan pemanggilan endpoint Playwright di backend
-        screenshotUrl: `http://localhost:3001/api/screenshot?url=${encodeURIComponent(app.url)}`
+       screenshotUrl: `http://localhost:3001/api/screenshot?url=${encodeURIComponent(app.url)}&opdCode=${encodeURIComponent(app.department?.code || "misc")}&appName=${encodeURIComponent(app.name)}`
       }));
 
       setIncidents(formattedData);

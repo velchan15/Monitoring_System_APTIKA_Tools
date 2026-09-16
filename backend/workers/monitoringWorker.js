@@ -1,92 +1,130 @@
-const { chromium } = require('playwright');
-const path = require('path');
-const fs = require('fs');
+const fs = require("fs");
+const path = require("path");
+const { chromium } = require("playwright");
+const { PrismaClient } = require("@prisma/client");
 
-const targets = [
-  { code: 'diskominfo', url: 'https://jabarprov.go.id', totalApps: 7 },
-  { code: 'disdukcapil', url: 'https://disdukcapil.jabarprov.go.id', totalApps: 5 },
-  { code: 'dinkes', url: 'https://simpus.dinkes.jabarprov.go.id', totalApps: 5 },
-  { code: 'bapenda', url: 'https://bapenda.jabarprov.go.id', totalApps: 5 },
-  { code: 'disdik', url: 'https://ppdb.disdik.jabarprov.go.id', totalApps: 5 },
-  { code: 'dpmptsp', url: 'https://dpmptsp.jabarprov.go.id', totalApps: 4 },
-  { code: 'bpkad', url: 'https://bpkad.jabarprov.go.id', totalApps: 4 },
-  { code: 'bkd', url: 'https://bkd.jabarprov.go.id', totalApps: 4 },
-];
+const prisma = new PrismaClient();
 
-const incidents = [
-  { id: 'inc-01', code: 'disdukcapil', url: 'https://disdukcapil.jabarprov.go.id' },
-  { id: 'inc-02', code: 'dinkes', url: 'https://simpus.dinkes.jabarprov.go.id' },
-  { id: 'inc-03', code: 'diskominfo', url: 'https://ppid.jabarprov.go.id' },
-  { id: 'inc-04', code: 'bapenda', url: 'https://bapenda.jabarprov.go.id/e-samsat' },
-  { id: 'inc-05', code: 'bpkad', url: 'https://bpkad.jabarprov.go.id/sipd' },
-];
+const SCREENSHOTS_ROOT = path.join(__dirname, "..", "..", "public", "screenshots");
+const INTERVAL_MS = 60 * 1000;
+const CONCURRENCY = 5;
+const NAV_TIMEOUT_MS = 15000;
+const CHROME_EXECUTABLE_PATH = process.env.CHROME_EXECUTABLE_PATH || undefined;
 
-async function runAutoScreenshotWorker() {
-  console.log('🤖 Memulai robot Playwright untuk aplikasi & insiden dengan subfolder per OPD...');
+let browserInstance = null;
+let isRunning = false;
+let stopRequested = false;
+let timeoutHandle = null;
 
-  const baseUploadDir = path.join(__dirname, '../../public/screenshots');
-
-  const browser = await chromium.launch({ 
-    headless: true,
-    executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' 
-  });
-
-  const context = await browser.newContext({
-    viewport: { width: 1280, height: 720 }
-  });
-
-  // 1. Screenshot Aplikasi per OPD
-  for (const target of targets) {
-    const subDir = path.join(baseUploadDir, target.code);
-    if (!fs.existsSync(subDir)) {
-      fs.mkdirSync(subDir, { recursive: true });
-    }
-
-    const page = await context.newPage();
-    try {
-      console.log(`🌐 Mengakses App OPD (${target.code}): ${target.url}`);
-      await page.goto(target.url, { waitUntil: 'networkidle', timeout: 30000 });
-      
-      for (let i = 1; i <= target.totalApps; i++) {
-        const fileName = `${target.code}-app-${i}.webp`;
-        const filePath = path.join(subDir, fileName);
-        
-        await page.screenshot({ path: filePath, type: 'webp', fullPage: false });
-        console.log(`✅ Berhasil menyimpan: screenshots/${target.code}/${fileName}`);
-      }
-    } catch (error) {
-      console.error(`❌ Gagal mengambil screenshot untuk ${target.url}:`, error.message);
-    } finally {
-      await page.close();
-    }
-  }
-
-  // 2. Screenshot Insiden (Masuk ke subfolder OPD masing-masing)
-  for (const inc of incidents) {
-    const subDir = path.join(baseUploadDir, inc.code);
-    if (!fs.existsSync(subDir)) {
-      fs.mkdirSync(subDir, { recursive: true });
-    }
-
-    const page = await context.newPage();
-    try {
-      console.log(`🚨 Mengakses Insiden (${inc.id}): ${inc.url}`);
-      await page.goto(inc.url, { waitUntil: 'networkidle', timeout: 30000 });
-      
-      const fileName = `${inc.id}.webp`;
-      const filePath = path.join(subDir, fileName);
-      
-      await page.screenshot({ path: filePath, type: 'webp', fullPage: false });
-      console.log(`✅ Berhasil menyimpan screenshot insiden: screenshots/${inc.code}/${fileName}`);
-    } catch (error) {
-      console.error(`❌ Gagal insiden ${inc.id}:`, error.message);
-    } finally {
-      await page.close();
-    }
-  }
-
-  await browser.close();
-  console.log('✨ Selesai. Semua screenshot aplikasi dan insiden tersimpan rapi di subfolder masing-masing OPD.');
+function sanitizeSegment(value, fallback) {
+  if (!value) return fallback;
+  const cleaned = String(value)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9-_]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return cleaned || fallback;
 }
 
-runAutoScreenshotWorker();
+async function getBrowser() {
+  if (!browserInstance) {
+    browserInstance = await chromium.launch({ headless: true, executablePath: CHROME_EXECUTABLE_PATH });
+  }
+  return browserInstance;
+}
+
+async function captureOne(app) {
+  const opdFolder = sanitizeSegment(app.department?.code, "misc");
+  const fileName = sanitizeSegment(app.name, `app-${app.id}`) + ".webp";
+  const targetDir = path.join(SCREENSHOTS_ROOT, opdFolder);
+  const targetPath = path.join(targetDir, fileName);
+  const publicPath = `/screenshots/${opdFolder}/${fileName}`;
+
+  const browser = await getBrowser();
+  let context = null;
+  try {
+    context = await browser.newContext({ viewport: { width: 1280, height: 720 }, ignoreHTTPSErrors: true });
+    const page = await context.newPage();
+
+    await page
+      .goto(app.url, { timeout: NAV_TIMEOUT_MS, waitUntil: "networkidle" })
+      .catch((err) => console.warn(`  gagal buka ${app.name}: ${err.message}`));
+
+    await page.waitForTimeout(1000);
+    fs.mkdirSync(targetDir, { recursive: true });
+    await page.screenshot({ path: targetPath, type: "webp", fullPage: false });
+
+    // Kaitkan screenshot ini ke MonitoringLog terbaru aplikasi ini (dibuat oleh uptimeWorker)
+    const latestLog = await prisma.monitoringLog.findFirst({
+      where: { applicationId: app.id },
+      orderBy: { checkedAt: "desc" },
+    });
+
+    if (latestLog) {
+      await prisma.screenshot.create({
+        data: { monitoringLogId: latestLog.id, filePath: publicPath },
+      });
+    } else {
+      console.warn(`  ${app.name}: belum ada MonitoringLog, file disimpan tapi belum dicatat ke DB.`);
+    }
+
+    console.log(`  ok: ${app.name} -> ${publicPath}`);
+  } catch (err) {
+    console.error(`  gagal screenshot ${app.name}:`, err.message);
+  } finally {
+    if (context) await context.close().catch(() => {});
+  }
+}
+
+async function runInChunks(items, size, worker) {
+  for (let i = 0; i < items.length; i += size) {
+    const chunk = items.slice(i, i + size);
+    await Promise.all(chunk.map(worker));
+  }
+}
+
+async function runMonitoringBatch() {
+  const startedAt = Date.now();
+  try {
+    const apps = await prisma.application.findMany({ where: { isActive: true }, include: { department: true } });
+    const withUrl = apps.filter((a) => a.url);
+    await runInChunks(withUrl, CONCURRENCY, captureOne);
+    console.log(`selesai - ${withUrl.length} aplikasi, ${((Date.now() - startedAt) / 1000).toFixed(1)} detik`);
+  } catch (err) {
+    console.error("gagal batch:", err.message);
+  }
+}
+
+async function loop() {
+  if (stopRequested) return;
+  if (isRunning) {
+    timeoutHandle = setTimeout(loop, INTERVAL_MS);
+    return;
+  }
+  isRunning = true;
+  const startedAt = Date.now();
+  await runMonitoringBatch();
+  const elapsed = Date.now() - startedAt;
+  isRunning = false;
+  if (stopRequested) return;
+  timeoutHandle = setTimeout(loop, Math.max(0, INTERVAL_MS - elapsed));
+}
+
+const INITIAL_DELAY_MS = 10 * 1000;
+
+function startMonitoringWorker() {
+  stopRequested = false;
+  timeoutHandle = setTimeout(loop, INITIAL_DELAY_MS);
+}
+
+async function stopMonitoringWorker() {
+  stopRequested = true;
+  if (timeoutHandle) clearTimeout(timeoutHandle);
+  if (browserInstance) {
+    await browserInstance.close().catch(() => {});
+    browserInstance = null;
+  }
+}
+
+module.exports = { startMonitoringWorker, stopMonitoringWorker, runMonitoringBatch };
