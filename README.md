@@ -1,8 +1,10 @@
-# Monitoring System — Dashboard Foundation (Tahap 1)
+# Monitoring System
 
-Dashboard shell untuk sistem monitoring aplikasi APTIKA, Diskominfo Jawa Barat.
-Tahap ini **belum** terhubung ke backend — semua data di halaman berasal dari
-`lib/dashboard-data.ts` (mock data).
+Dashboard sistem monitoring aplikasi milik Perangkat Daerah (OPD) Provinsi Jawa
+Barat, dikelola APTIKA/Diskominfo. Sekarang **sudah full-stack**: frontend
+Next.js terhubung ke backend Express + PostgreSQL (Prisma) yang secara
+otomatis mengecek uptime dan mengambil screenshot tiap aplikasi secara
+berkala, bukan lagi mock data statis.
 
 ## Penempatan project
 
@@ -14,39 +16,176 @@ D:\App\APTIKA\monitoring_system
 
 ## Cara menjalankan
 
-Butuh Node.js 18.18+ atau 20+ terpasang.
+Project ini punya **dua bagian terpisah**, masing-masing dengan `package.json`
+dan `node_modules` sendiri:
+
+```
+monitoring_system/          ← frontend (Next.js) — root repo
+backend/                    ← backend (Express + Prisma + PostgreSQL + Playwright)
+```
+
+Frontend **butuh backend menyala** untuk data yang real (daftar aplikasi,
+uptime, insiden, screenshot). Tanpa backend, halaman-halaman yang fetch ke API
+akan kosong/gagal fetch — jadi jalankan dua-duanya, di dua terminal terpisah.
+
+### 1. Backend (Express + Prisma + Playwright)
+
+**Prasyarat:**
+- Node.js 20+
+- PostgreSQL yang jalan (default expect `127.0.0.1:5432`)
+- Redis yang jalan (default expect `127.0.0.1:6379`) — dipakai BullMQ untuk antrean
+- Google Chrome terpasang, **atau** browser bawaan Playwright (lihat langkah 3)
+
+**Environment variable** (`backend/.env` — belum ada `.env.example` karena pola
+`.env.*` ikut ter-`.gitignore`, jadi buat filenya manual):
+
+```env
+DATABASE_URL="postgresql://monitoring:PASSWORD_ANDA@127.0.0.1:5432/monitoring?schema=public"
+REDIS_URL="redis://127.0.0.1:6379"
+PORT=3001
+
+# Opsional — isi ini HANYA kalau muncul error Playwright
+# "Executable doesn't exist..." dan kamu mau pakai Chrome yang sudah
+# terpasang di komputer, bukan Chromium bawaan Playwright:
+# CHROME_EXECUTABLE_PATH="C:\Program Files\Google\Chrome\Application\chrome.exe"
+```
+
+**Langkah setup:**
+
+```bash
+cd backend
+npm install
+
+# generate Prisma Client dari prisma/schema.prisma
+npm run prisma:generate
+
+# buat seluruh tabel di database sesuai schema
+npm run prisma:migrate -- --name init
+
+# isi data awal (role, departemen/OPD, dsb.)
+node prisma/seed.js
+
+# download browser Chromium yang dipakai Playwright buat screenshot
+npx playwright install chromium
+
+# jalankan API (auto-restart pakai --watch)
+npm run dev
+```
+
+> **Catatan penting soal `seed.js`:** script seed ini menulis `id` departemen/role
+> secara manual (`{ id: 1, code: 'DKI', ... }`), bukan lewat auto-increment.
+> Akibatnya, PostgreSQL "lupa" sudah ada baris sampai id tertentu, dan `.create()`
+> berikutnya (tanpa id manual) bisa gagal dengan error:
+> `Unique constraint failed on the fields: (`id`)`.
+> Kalau ini muncul, jalankan sekali lewat `psql` atau Prisma Studio:
+> ```sql
+> SELECT setval(pg_get_serial_sequence('"departments"', 'id'), COALESCE((SELECT MAX(id) FROM "departments"), 1));
+> SELECT setval(pg_get_serial_sequence('"applications"', 'id'), COALESCE((SELECT MAX(id) FROM "applications"), 1));
+> SELECT setval(pg_get_serial_sequence('"roles"', 'id'), COALESCE((SELECT MAX(id) FROM "roles"), 1));
+> ```
+
+API mendengarkan di `http://127.0.0.1:3001`. Cek kesehatannya:
+
+```bash
+curl http://127.0.0.1:3001/api/health/live
+# {"service":"monitoring-api","status":"ok"}
+
+curl http://127.0.0.1:3001/api/health/ready
+# 200 kalau PostgreSQL & Redis nyala, 503 kalau salah satu mati
+```
+
+**Begitu `npm run dev` menyala, dua proses latar belakang otomatis ikut jalan**
+(tidak perlu perintah terpisah):
+
+| Worker | File | Interval | Yang dikerjakan |
+|---|---|---|---|
+| Uptime worker | `backend/workers/uptimeWorker.js` | tiap 30 detik | Ping HTTP semua aplikasi aktif, simpan ke `MonitoringLog`, update `UptimeDailySummary` & `Application.status`, otomatis bikin `Incident` kalau aplikasi down |
+| Monitoring worker | `backend/workers/monitoringWorker.js` | tiap ±1 menit (nunggu batch sebelumnya selesai kalau lebih lama) | Screenshot semua aplikasi aktif pakai Playwright, simpan ke `public/screenshots/<kode-opd>/<nama-aplikasi>.webp`, dicatat di tabel `Screenshot` yang nempel ke `MonitoringLog` terakhir |
+
+> ⚠️ **Kalau file `uptimeWorker.js`/`monitoringWorker.js` di komputer kamu masih
+> versi lama** (dapat error Prisma `Argument isUp is missing`, atau
+> `monitoringWorker.js` cuma screenshot 8 URL hardcode berulang tanpa baca
+> database) — berarti perbaikan yang sudah dikerjakan belum di-`git commit` &
+> `git push` ke repo ini. Pastikan versi yang jalan di lokal sudah yang terbaru
+> sebelum push, supaya orang lain yang clone repo ini dapat versi yang benar.
+
+Script lain (lihat `backend/package.json`):
+
+| Perintah                  | Fungsi                                                        |
+|---------------------------|----------------------------------------------------------------|
+| `npm run dev`             | Jalankan API dengan `node --watch` (auto-restart)              |
+| `npm run start`           | Jalankan API tanpa watch (mode produksi sederhana)              |
+| `npm test`                | Unit test (`node --test`) — **tidak butuh** PostgreSQL/Redis nyala |
+| `npm run prisma:generate` | Generate Prisma Client                                          |
+| `npm run prisma:migrate`  | Jalankan migrasi Prisma ke database                             |
+| `npm run prisma:validate` | Validasi syntax `schema.prisma` — juga tidak butuh DB nyala      |
+
+Panduan lengkap setup PostgreSQL/Redis di Windows (termasuk lewat Laragon) ada
+di [backend/README.md](backend/README.md).
+
+**Opsional — impor data aplikasi riil dari Excel:** kalau ada file rekap
+aplikasi OPD (`Nama Aplikasi`, `URL`, `Pemilik Aplikasi`, dst.) yang mau
+dimasukkan sekaligus, taruh JSON hasil bersihannya di
+`backend/prisma/data/applications-import.json`, lalu jalankan:
+
+```bash
+node prisma/importApplications.js
+```
+
+Aman dijalankan berkali-kali (skip data yang sudah ada, tidak menduplikasi).
+
+### 2. Frontend (Next.js) — dashboard
+
+**Prasyarat:** Node.js 18.18+ atau 20+.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Buka `http://localhost:3000` — halaman dashboard akan langsung tampil (tidak
-perlu login/API, sesuai scope tahap 1).
+Buka `http://localhost:3000`. Kalau backend belum menyala, halaman tetap
+tampil tapi data yang fetch dari API (daftar aplikasi, insiden, uptime) akan
+kosong atau menampilkan pesan gagal memuat.
 
-## Verifikasi build & lint
+Script lain yang tersedia (lihat `package.json`):
 
-Sebelum dipakai, sudah diverifikasi jalan bersih:
-
-```bash
-npm run lint   # ✔ No ESLint warnings or errors
-npm run build  # ✓ Compiled successfully
-```
+| Perintah        | Fungsi                                             |
+|-----------------|-----------------------------------------------------|
+| `npm run dev`   | Jalankan mode development di `localhost:3000`       |
+| `npm run build` | Build production (`.next/`)                         |
+| `npm run start` | Jalankan hasil build production (jalankan `build` dulu) |
+| `npm run lint`  | Jalankan ESLint (`eslint-config-next`)               |
 
 ## Struktur project
 
 ```
 app/
-  layout.tsx          Root layout + metadata
-  page.tsx             Komposisi halaman dashboard (state buka/tutup sidebar mobile)
-  globals.css          Tailwind base + penghormatan prefers-reduced-motion
-components/dashboard/
-  MonitoringSidebar.tsx   Sidebar navigasi (Dashboard aktif, item lain placeholder)
-  MonitoringHeader.tsx    Header: tanggal/waktu, status auto-refresh, notifikasi, operator
-  StatusCard.tsx           Kartu status yang reusable untuk 5 metrik
+  layout.tsx              Root layout + metadata
+  page.tsx                 Komposisi halaman dashboard utama
+  opd/[id]/page.tsx         Halaman detail per Perangkat Daerah (dibuka di tab baru)
+  globals.css               Tailwind base
+components/
+  dashboard/                Sidebar, header, kartu status, chart, tabel insiden,
+                             daftar uptime (UptimeList.tsx), modal detail insiden
+  auth/, users/, incidents/, notifications/, reports/, integrations/, audit/,
+  responsetime/, ui/        Komponen per area fitur
 lib/
-  dashboard-data.ts    Mock data (metrik status, nav item, header) — TERPISAH dari UI
-  utils.ts             Helper cn() gaya shadcn/ui (clsx + tailwind-merge)
+  dashboard-data.ts          Tipe data & (sisa) mock data
+  auth-context.tsx           Context autentikasi & role
+  utils.ts                   Helper cn() gaya shadcn/ui
+public/screenshots/<kode-opd>/<aplikasi>.webp
+                             Hasil screenshot otomatis per aplikasi, per OPD
+
+backend/
+  src/app.js                 Setup Express app, routes, endpoint /api/screenshot
+  src/server.js               Entry point — nyalain app + kedua worker
+  src/routes/, controllers/, middlewares/, db/, health/, queues/
+  workers/uptimeWorker.js     Cek uptime tiap 30 detik
+  workers/monitoringWorker.js Screenshot semua aplikasi tiap ±1 menit
+  prisma/schema.prisma        Skema database (14 model: Application, Department,
+                               Incident, MonitoringLog, Screenshot, dst.)
+  prisma/seed.js               Data awal (role, OPD)
+  prisma/importApplications.js Import massal data aplikasi dari Excel (opsional)
 ```
 
 ## Catatan desain
@@ -69,17 +208,21 @@ lib/
 
 ## Responsif
 
-- **Layar lebar (≥ 1024px)**: sidebar persisten di kiri, 5 kartu status dalam satu
+- **Layar lebar (≥ 1024px)**: sidebar persisten di kiri, kartu status dalam satu
   baris.
 - **3:4 dan lebih sempit (< 1024px)**: header jadi ringkas, sidebar tersembunyi di
   belakang tombol menu (drawer), kartu status reflow ke 1–2 kolom tanpa scroll
   horizontal.
 
-## Tahap selanjutnya (di luar scope tahap 1 ini)
+## Tahap selanjutnya
 
-Chart, status donut, tabel insiden, daftar uptime, ringkasan per Perangkat
-Daerah, autentikasi, koneksi API, polling data asli, dan notifikasi fungsional —
-lihat dokumen rancangan backend untuk arah integrasinya.
+Sudah berjalan: chart status, tabel insiden, daftar uptime, ringkasan per
+Perangkat Daerah, koneksi API, polling data asli, uptime & screenshot otomatis
+berkala. Yang masih di roadmap: form "Tambah Website" (tambah aplikasi baru
+lewat UI, bukan cuma lewat seed/import), notifikasi fungsional (channel
+Notification sudah ada di skema, pengirimannya belum), dan penyempurnaan
+autentikasi/role — lihat dokumen rancangan backend di bawah untuk arah
+integrasinya.
 
 # Rancangan Backend v2 — Sistem Monitoring APTIKA Tools
 ### Stack: Node.js · Express.js · Prisma ORM · PostgreSQL · BullMQ+Redis · Playwright
@@ -577,4 +720,9 @@ playwright-worker/
 
 ## Backend MVP lokal
 
-Implementasi fondasi backend berada di [backend/README.md](backend/README.md). Backend menggunakan Express, Prisma dengan PostgreSQL, serta BullMQ dengan Redis Laragon. Belum ada Docker Compose karena lingkungan pengembangan ini menjalankan layanan secara lokal.
+Implementasi fondasi backend ada di folder [`backend/`](backend/), pakai Express,
+Prisma (PostgreSQL), serta BullMQ dengan Redis. Cara instal & menjalankannya ada
+di bagian [Cara menjalankan → 2. Backend](#2-backend-express-prisma-bullmq-opsional-mvp)
+di atas, dan panduan detail setup PostgreSQL/Redis di Windows (Laragon) ada di
+[backend/README.md](backend/README.md). Belum ada Docker Compose karena
+lingkungan pengembangan ini menjalankan layanan secara lokal.
