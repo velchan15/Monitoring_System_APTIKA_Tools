@@ -55,7 +55,6 @@ interface MonitoringSidebarProps {
   onClose?: () => void;
   activeTab: NavTabId;
   onSelectTab: (tab: NavTabId) => void;
-  activeIncidentCount?: number;
   unreadNotifCount?: number;
 }
 
@@ -64,11 +63,13 @@ export function MonitoringSidebar({
   onClose,
   activeTab,
   onSelectTab,
-  activeIncidentCount = 2,
   unreadNotifCount = 0,
 }: MonitoringSidebarProps) {
   const { user, isSuperAdmin } = useAuth();
+  
+  // State untuk menghitung total aplikasi & insiden aktif secara real-time
   const [totalAppsCount, setTotalAppsCount] = useState<number | null>(null);
+  const [activeIncidentCount, setActiveIncidentCount] = useState<number>(0);
 
   const fetchAppCount = async () => {
     try {
@@ -81,19 +82,43 @@ export function MonitoringSidebar({
     }
   };
 
+  const fetchIncidentCount = async () => {
+    try {
+      const token = localStorage.getItem("token") || "";
+      const res = await fetch("http://localhost:3001/api/incidents", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      const json = await res.json();
+      const data = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
+      
+      // Hitung hanya insiden yang statusnya BUKAN 'resolved' (selesai)
+      const activeCount = data.filter((inc: any) => inc.status !== "resolved").length;
+      setActiveIncidentCount(activeCount);
+    } catch (error) {
+      console.error("Gagal mengambil jumlah insiden untuk sidebar:", error);
+    }
+  };
+
   useEffect(() => {
     fetchAppCount();
-    const interval = setInterval(fetchAppCount, 30000);
+    fetchIncidentCount();
+    
+    const interval = setInterval(() => {
+      fetchAppCount();
+      fetchIncidentCount();
+    }, 30000);
 
     // Menerima event custom agar sidebar langsung update detik itu juga
-    const handleAppChange = () => {
-      fetchAppCount();
-    };
+    const handleAppChange = () => fetchAppCount();
+    const handleIncidentChange = () => fetchIncidentCount();
+    
     window.addEventListener("appDataChanged", handleAppChange);
+    window.addEventListener("incidentDataChanged", handleIncidentChange);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener("appDataChanged", handleAppChange);
+      window.removeEventListener("incidentDataChanged", handleIncidentChange);
     };
   }, []);
 

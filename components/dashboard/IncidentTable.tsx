@@ -12,13 +12,14 @@ import {
 import { cn } from "@/lib/utils";
 import { IncidentDetailModal } from "./IncidentDetailModal";
 
-// App icon placeholder — colored circle with first letter
+// App icon placeholder — dengan fallback super aman
 function AppIcon({ name, opdName }: { name: string; opdName: string }) {
+  const safeName = name || "NA";
   const colors = ["bg-blue-500", "bg-red-500", "bg-emerald-500", "bg-purple-500", "bg-amber-500", "bg-indigo-500"];
-  const color = colors[name.charCodeAt(0) % colors.length];
+  const color = colors[safeName.charCodeAt(0) % colors.length] || colors[0];
   return (
     <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md font-mono text-[11px] font-bold text-white", color)}>
-      {name.slice(0, 2).toUpperCase()}
+      {safeName.slice(0, 2).toUpperCase()}
     </span>
   );
 }
@@ -30,39 +31,61 @@ const severityBadges: Record<IncidentSeverity, { label: string; class: string }>
   info:     { label: "Online",  class: "bg-emerald-100 text-emerald-700 border-emerald-200" },
 };
 
-// Custom Hook untuk menarik data aplikasi bermasalah dari database
+// Custom Hook untuk menarik data insiden asli dari backend dengan struktur JSON yang benar
 function useLiveIncidents() {
   const [incidents, setIncidents] = useState<IncidentItem[]>([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  const fetchTroubledApps = async () => {
+  const fetchIncidents = async () => {
     try {
-      const res = await fetch("http://localhost:3001/api/applications");
+      const token = localStorage.getItem("token") || ""; 
+      const res = await fetch("http://localhost:3001/api/incidents", {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      
       const json = await res.json();
-      const data = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+      
+      // Ambil array data dengan aman berapapun bentuk bungkusannya
+      const data = Array.isArray(json) 
+        ? json 
+        : (Array.isArray(json.data) ? json.data : (json.incidents || []));
 
-      // Filter hanya aplikasi yang bermasalah
-      const troubled = data.filter((a: any) => 
-        a.status === "OFFLINE" || a.status === "CRITICAL" || a.status === "WARNING"
-      );
+      const formattedData: IncidentItem[] = data.map((inc: any) => {
+        // Mengambil nama aplikasi langsung dari objek relasi 'application'
+        const safeAppName = inc.application?.name || inc.appName || inc.name || `Aplikasi ID #${inc.applicationId || inc.id}`;
+        
+        // Nama OPD (dapat disesuaikan jika relasi OPD sudah ada di backend)
+        const safeOpdName = inc.application?.department?.name || inc.opdName || "Pemerintah Provinsi Jawa Barat";
+        const safeOpdCode = inc.application?.department?.code || inc.opdCode || "JBR";
 
-      // Ubah format data dari database menjadi struktur IncidentItem
-      const formattedData: IncidentItem[] = troubled.map((app: any) => ({
-        id: String(app.id),
-        ticketNumber: `INC-2026-${String(app.id).padStart(4, '0')}`,
-        appName: app.name,
-        opdName: app.department?.name || "Pemerintah Provinsi Jawa Barat",
-        opdCode: app.department?.code || "JBR",
-        severity: (app.status === "OFFLINE" || app.status === "CRITICAL") ? "critical" : "major",
-        status: "open",
-        startedAt: "Hari ini, " + new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB",
-        duration: "Sedang Berlangsung",
-        description: `Sistem mendeteksi layanan ${app.name} berstatus ${app.status}. Tim terkait perlu melakukan pengecekan pada infrastruktur jaringan atau server.`,
-        timeline: [
-          { time: new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB", note: "Sistem mendeteksi gangguan akses." }
-        ],
-        // Persiapan pemanggilan endpoint Playwright di backend
-       screenshotUrl: `http://localhost:3001/api/screenshot?url=${encodeURIComponent(app.url)}&opdCode=${encodeURIComponent(app.department?.code || "misc")}&appName=${encodeURIComponent(app.name)}`
-      }));
+        const rawDate = inc.createdAt || inc.startedAt || new Date().toISOString();
+        const formattedDate = new Date(rawDate).toLocaleString("id-ID", {
+          day: "2-digit", month: "short", year: "numeric", 
+          hour: "2-digit", minute: "2-digit"
+        }) + " WIB";
+
+        let sev = inc.severity ? inc.severity.toLowerCase() : "critical";
+        if (!["critical", "major", "minor", "info"].includes(sev)) {
+          sev = "critical";
+        }
+
+        return {
+          id: String(inc.id),
+          ticketNumber: inc.ticketNumber || `INC-2026-${String(inc.id).padStart(4, '0')}`,
+          appName: safeAppName,
+          opdName: safeOpdName,
+          opdCode: safeOpdCode,
+          severity: sev as IncidentSeverity,
+          status: (inc.status === "resolved" || inc.status === "Selesai") ? "resolved" : "open",
+          startedAt: formattedDate,
+          duration: (inc.status === "resolved" || inc.status === "Selesai") ? "Selesai" : "Sedang Berlangsung",
+          description: inc.cause || inc.description || `Laporan gangguan terdeteksi pada sistem ${safeAppName}.`,
+          timeline: inc.timeline && inc.timeline.length > 0 ? inc.timeline : [{ time: formattedDate, note: "Tiket insiden dibuat oleh sistem monitoring." }],
+          screenshotUrl: inc.application?.url 
+            ? `http://localhost:3001/api/screenshot?url=${encodeURIComponent(inc.application.url)}` 
+            : ""
+        };
+      });
 
       setIncidents(formattedData);
     } catch (error) {
@@ -71,12 +94,18 @@ function useLiveIncidents() {
   };
 
   useEffect(() => {
-    fetchTroubledApps();
-    const interval = setInterval(fetchTroubledApps, 30000); // Auto refresh 30 detik
+    fetchIncidents();
+    const interval = setInterval(fetchIncidents, 30000); 
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshTrigger]);
 
-  return { incidents, setIncidents };
+  return { 
+    incidents, 
+    refresh: () => {
+      setRefreshTrigger(prev => prev + 1);
+      window.dispatchEvent(new Event("incidentDataChanged"));
+    } 
+  };
 }
 
 // ---- Compact version for Dashboard overview ----
@@ -85,25 +114,30 @@ interface DashboardIncidentProps {
 }
 
 export function DashboardIncidentList({ limit = 5 }: DashboardIncidentProps) {
-  const { incidents, setIncidents } = useLiveIncidents();
+  const { incidents, refresh } = useLiveIncidents();
   const [selectedIncident, setSelectedIncident] = useState<IncidentItem | null>(null);
   const [isModalOpen, setModalOpen] = useState(false);
 
   const displayed = incidents.slice(0, limit);
 
-  const handleUpdateStatus = (id: string, newStatus: IncidentStatus, note?: string) => {
-    setIncidents((prev) =>
-      prev.map((inc) => {
-        if (inc.id !== id) return inc;
-        const nowStr = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB";
-        const updatedTimeline = [...inc.timeline];
-        if (note) updatedTimeline.push({ time: nowStr, note });
-        else if (newStatus === "resolved") updatedTimeline.push({ time: nowStr, note: "Insiden diselesaikan." });
-        const updated = { ...inc, status: newStatus, timeline: updatedTimeline };
-        if (selectedIncident?.id === id) setSelectedIncident(updated);
-        return updated;
-      })
-    );
+  const handleUpdateStatus = async (id: string, newStatus: IncidentStatus, note?: string) => {
+    try {
+      const token = localStorage.getItem("token") || "";
+      const res = await fetch(`http://localhost:3001/api/incidents/${id}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus, note })
+      });
+
+      if (!res.ok) throw new Error("Gagal mengupdate status insiden ke server.");
+      refresh();
+      setModalOpen(false);
+    } catch (error: any) {
+      alert(error.message || "Terjadi kesalahan sistem.");
+    }
   };
 
   return (
@@ -135,7 +169,7 @@ export function DashboardIncidentList({ limit = 5 }: DashboardIncidentProps) {
               </tr>
             ) : (
               displayed.map((inc) => {
-                const sev = severityBadges[inc.severity];
+                const sev = severityBadges[inc.severity] || severityBadges.critical;
                 return (
                   <tr key={inc.id} className="transition-colors hover:bg-canvas/40 group">
                     <td className="px-4 py-2.5">
@@ -178,7 +212,7 @@ export function DashboardIncidentList({ limit = 5 }: DashboardIncidentProps) {
 
       <div className="border-t border-border px-4 py-2.5">
         <button type="button" className="text-xs font-semibold text-brand hover:underline">
-          Licat Semua Gangguan →
+          Lihat Semua Gangguan →
         </button>
       </div>
 
@@ -200,7 +234,7 @@ interface IncidentTableProps {
 
 export function IncidentTable({ limit, showTitleHeader = true }: IncidentTableProps) {
   const { canManageIncidents } = useAuth();
-  const { incidents, setIncidents } = useLiveIncidents();
+  const { incidents, refresh } = useLiveIncidents();
   const [selectedIncident, setSelectedIncident] = useState<IncidentItem | null>(null);
   const [isModalOpen, setModalOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -213,19 +247,23 @@ export function IncidentTable({ limit, showTitleHeader = true }: IncidentTablePr
 
   const displayed = limit ? filtered.slice(0, limit) : filtered;
 
-  const handleUpdateStatus = (id: string, newStatus: IncidentStatus, note?: string) => {
-    setIncidents((prev) =>
-      prev.map((inc) => {
-        if (inc.id !== id) return inc;
-        const nowStr = new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB";
-        const updatedTimeline = [...inc.timeline];
-        if (note) updatedTimeline.push({ time: nowStr, note });
-        else if (newStatus === "resolved") updatedTimeline.push({ time: nowStr, note: "Insiden diselesaikan oleh operator." });
-        const updated = { ...inc, status: newStatus, timeline: updatedTimeline };
-        if (selectedIncident?.id === id) setSelectedIncident(updated);
-        return updated;
-      })
-    );
+  const handleUpdateStatus = async (id: string, newStatus: IncidentStatus, note?: string) => {
+    try {
+      const token = localStorage.getItem("token") || "";
+      const res = await fetch(`http://localhost:3001/api/incidents/${id}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: newStatus, note })
+      });
+
+      if (!res.ok) throw new Error("Gagal mengupdate status insiden ke server.");
+      refresh();
+    } catch (error: any) {
+      alert(error.message || "Terjadi kesalahan sistem.");
+    }
   };
 
   return (
@@ -276,7 +314,7 @@ export function IncidentTable({ limit, showTitleHeader = true }: IncidentTablePr
               </tr>
             ) : (
               displayed.map((inc) => {
-                const sev = severityBadges[inc.severity];
+                const sev = severityBadges[inc.severity] || severityBadges.critical;
                 const canEdit = canManageIncidents(inc.opdCode);
                 return (
                   <tr key={inc.id} className="hover:bg-canvas/40 transition-colors">
@@ -296,7 +334,7 @@ export function IncidentTable({ limit, showTitleHeader = true }: IncidentTablePr
                       </span>
                     </td>
                     <td className="px-3 py-3 font-mono text-[11px] text-ink/60 whitespace-nowrap">
-                      {inc.startedAt.split(",")[1]?.trim() || inc.startedAt}
+                      {inc.startedAt}
                     </td>
                     <td className="px-3 py-3 text-[11px] text-ink/60 whitespace-nowrap">{inc.duration}</td>
                     <td className="px-3 py-3 text-right">
