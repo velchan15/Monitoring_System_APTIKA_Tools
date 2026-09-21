@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "node --watch src/server.js",
+    "build": "npx prisma generate && npx playwright install chromium --with-deps",
     "start": "node src/server.js",
     "test": "node --test",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
