@@ -16,7 +16,6 @@ export interface UserProfile {
   avatarBg?: string;
 }
 
-// Tambahkan data preset akun demo/mock agar LoginModal tidak error saat build
 export const PRESET_ACCOUNTS: UserProfile[] = [
   {
     id: "1",
@@ -50,6 +49,7 @@ interface AuthContextType {
   canManageUsers: boolean;
   canManageSettings: boolean;
   canEditIncidents: (targetOpdCode?: string) => boolean;
+  canManageIncidents: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -117,6 +117,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const canManageUsers = isSuperAdmin;
   const canManageSettings = isSuperAdmin;
+  
+  // Pindahkan ke bawah setelah variabel role terdefinisi
+  const canManageIncidents = Boolean(isSuperAdmin || isAdminOpd || isOperator);
 
   const canEditIncidents = (targetOpdCode?: string) => {
     if (!user) return false;
@@ -142,6 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         canManageUsers,
         canManageSettings,
         canEditIncidents,
+        canManageIncidents, // <-- Masukkan ke sini
       }}
     >
       {children}
