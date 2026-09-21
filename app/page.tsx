@@ -152,7 +152,6 @@ function DashboardContent() {
         onClose={() => setSidebarOpen(false)}
         activeTab={activeTab}
         onSelectTab={(tab) => setActiveTab(tab)}
-        activeIncidentCount={activeIncidentCount}
       />
 
       <div className="lg:pl-64 flex flex-col min-h-dvh">

@@ -56,7 +56,6 @@ interface MonitoringSidebarProps {
   activeTab: NavTabId;
   onSelectTab: (tab: NavTabId) => void;
   unreadNotifCount?: number;
-  activeIncidentCount?: number; // <-- Diperlukan agar cocok dengan app/page.tsx
 }
 
 export function MonitoringSidebar({
