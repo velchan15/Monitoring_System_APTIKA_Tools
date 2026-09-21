@@ -37,11 +37,14 @@ function IncidentDetailDrawer({ incident, onClose, onUpdateStatus }: IncidentDet
   const [screenshot, setScreenshot] = useState<string | null>(null);
 
   useEffect(() => {
-    if (incident?.screenshotUrl) {
-      setScreenshot(incident.screenshotUrl);
+    const inc = incident as any; 
+    
+    if (inc?.screenshotUrl) {
+      setScreenshot(inc.screenshotUrl);
     } else {
       setScreenshot(null);
     }
+
   }, [incident]);
 
   useEffect(() => {
