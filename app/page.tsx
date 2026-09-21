@@ -96,7 +96,7 @@ function DashboardContent() {
   // Fungsi untuk menarik data dari API backend dengan penanganan status yang fleksibel
   const fetchAppMetrics = async () => {
     try {
-      const res = await fetch("${API_URL}/api/applications");
+      const res = await fetch(`${API_URL}/api/applications`);
       const jsonRes = await res.json();
       const data = jsonRes.data || jsonRes;
 
@@ -331,7 +331,7 @@ function RootAuthGate() {
     setIsLoading(true);
 
     try {
-      const res = await fetch("${API_URL}/api/auth/login", {
+      const res = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -357,7 +357,7 @@ function RootAuthGate() {
     setIsLoading(true);
 
     try {
-      const res = await fetch("/${API_URL}/api/users", {
+      const res = await fetch(`${API_URL}/api/users`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
