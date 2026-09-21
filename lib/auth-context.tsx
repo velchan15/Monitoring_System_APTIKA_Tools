@@ -49,7 +49,7 @@ interface AuthContextType {
   canManageUsers: boolean;
   canManageSettings: boolean;
   canEditIncidents: (targetOpdCode?: string) => boolean;
-  canManageIncidents: boolean;
+  canManageIncidents: (targetOpdCode?: string) => boolean; // <-- Diubah agar menerima argumen
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -117,9 +117,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const canManageUsers = isSuperAdmin;
   const canManageSettings = isSuperAdmin;
-  
-  // Pindahkan ke bawah setelah variabel role terdefinisi
-  const canManageIncidents = Boolean(isSuperAdmin || isAdminOpd || isOperator);
 
   const canEditIncidents = (targetOpdCode?: string) => {
     if (!user) return false;
@@ -127,6 +124,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (isAdminOpd && targetOpdCode && user.opdCode === targetOpdCode) return true;
     if (isOperator) return true;
     return false;
+  };
+
+  // Logika canManageIncidents disamakan dengan canEditIncidents dan menerima argumen targetOpdCode
+  const canManageIncidents = (targetOpdCode?: string) => {
+    return canEditIncidents(targetOpdCode);
   };
 
   return (
@@ -145,7 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         canManageUsers,
         canManageSettings,
         canEditIncidents,
-        canManageIncidents, // <-- Masukkan ke sini
+        canManageIncidents, // <-- Dipanggil dengan aman
       }}
     >
       {children}
