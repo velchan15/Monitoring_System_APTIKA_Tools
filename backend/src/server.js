@@ -1,15 +1,16 @@
 require("dotenv").config();
 
-const { chromium } = require('playwright'); // <-- Tambahan import Playwright
+const { chromium } = require('playwright'); 
 const { createApp } = require("./app");
 const { prisma } = require("./db/prisma");
 const { createReadinessCheck } = require("./health/readiness");
 const { redisConnection } = require("./queues/connection");
 const { closeQueues } = require("./queues/queues");
 
-// 1. Impor worker pemantau uptime
+// 1. Impor semua background worker (Uptime, Monitoring, dan SSL)
 const { startUptimeWorker } = require("../workers/uptimeWorker");
 const { startMonitoringWorker, stopMonitoringWorker } = require("../workers/monitoringWorker");
+const { startSslWorker } = require("../workers/sslWorker"); // Pastikan path foldernya sesuai
 
 const port = Number.parseInt(process.env.PORT || "3001", 10);
 const app = createApp({
@@ -24,20 +25,16 @@ app.get('/api/screenshot', async (req, res) => {
   if (!targetUrl) return res.status(400).send('URL diperlukan');
 
   try {
-    // Membuka browser virtual di balik layar
     const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
     const page = await context.newPage();
     
-    // Buka website (tunggu maksimal 15 detik, abaikan error jika website benar-benar mati)
     await page.goto(targetUrl, { timeout: 15000, waitUntil: 'domcontentloaded' }).catch(() => {});
-    await page.waitForTimeout(1500); // Jeda rendering elemen halaman
+    await page.waitForTimeout(1500);
     
-    // Ambil jepretan layar dalam bentuk buffer gambar
     const buffer = await page.screenshot({ fullPage: false });
     await browser.close();
 
-    // Kirim langsung format gambarnya ke Frontend Next.js
     res.set('Content-Type', 'image/png');
     res.send(buffer);
   } catch (error) {
@@ -50,9 +47,10 @@ app.get('/api/screenshot', async (req, res) => {
 const server = app.listen(port, () => {
   console.log(`Monitoring API berjalan pada http://127.0.0.1:${port}`);
   
-  // 2. Jalankan background worker setelah server berhasil menyala
+  // 2. Jalankan semua background worker setelah server berhasil menyala
   startUptimeWorker();
   startMonitoringWorker();
+  startSslWorker(); // <-- Ditambahkan agar worker SSL otomatis berjalan!
 });
 
 async function shutdown(signal) {

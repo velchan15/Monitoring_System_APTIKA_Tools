@@ -67,18 +67,30 @@ export function MonitoringSidebar({
 }: MonitoringSidebarProps) {
   const { user, isSuperAdmin } = useAuth();
   
-  // State untuk menghitung total aplikasi & insiden aktif secara real-time
+  // State untuk menghitung total aplikasi, insiden, & peringatan SSL secara real-time
   const [totalAppsCount, setTotalAppsCount] = useState<number | null>(null);
   const [activeIncidentCount, setActiveIncidentCount] = useState<number>(0);
+  const [sslWarningCount, setSslWarningCount] = useState<number>(0);
 
   const fetchAppCount = async () => {
     try {
       const res = await fetch("http://localhost:3001/api/applications");
       const json = await res.json();
       const data = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
+      
       setTotalAppsCount(data.length);
+
+      // Hitung peringatan SSL (sisa hari <= 30 atau sudah kedaluwarsa)
+      const sslWarnings = data.filter((app: any) => {
+        if (!app.url || !app.sslValidTo) return false;
+        const validToDate = new Date(app.sslValidTo);
+        const daysLeft = Math.ceil((validToDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+        return daysLeft <= 30;
+      }).length;
+      
+      setSslWarningCount(sslWarnings);
     } catch (error) {
-      console.error("Gagal mengambil jumlah total aplikasi untuk sidebar:", error);
+      console.error("Gagal mengambil data aplikasi untuk sidebar:", error);
     }
   };
 
@@ -141,7 +153,13 @@ export function MonitoringSidebar({
           badge: activeIncidentCount > 0 ? `${activeIncidentCount} Aktif` : undefined,
           badgeVariant: "red",
         },
-        { id: "ssl", name: "SSL Certificate", icon: ShieldCheck, badge: "1 Warn", badgeVariant: "amber" },
+        { 
+          id: "ssl", 
+          name: "SSL Certificate", 
+          icon: ShieldCheck, 
+          badge: sslWarningCount > 0 ? `${sslWarningCount} Warn` : undefined, 
+          badgeVariant: "amber" 
+        },
         { id: "response_time", name: "Response Time", icon: Clock },
       ],
     },

@@ -32,15 +32,15 @@ model Department {
 
 // 3. Users
 model User {
-  id           Int         @id @default(autoincrement())
-  roleId       Int         @map("role_id")
-  departmentId Int?        @map("department_id")
-  name         String      @db.VarChar(100)
-  email        String      @unique @db.VarChar(100)
-  password     String      @db.VarChar(255)
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
-  role         Role        @relation(fields: [roleId], references: [id])
+  id           Int       @id @default(autoincrement())
+  roleId       Int       @map("role_id")
+  departmentId Int?      @map("department_id")
+  name         String    @db.VarChar(100)
+  email        String    @unique @db.VarChar(100)
+  password     String    @db.VarChar(255)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  role         Role      @relation(fields: [roleId], references: [id])
   department   Department? @relation(fields: [departmentId], references: [id])
   auditLogs    AuditLog[]
 
@@ -75,6 +75,10 @@ model Application {
   isActive             Boolean               @default(true) @map("is_active")
   createdAt            DateTime              @default(now()) @map("created_at")
   updatedAt            DateTime              @updatedAt @map("updated_at")
+  sslValidTo           DateTime?             @map("ssl_valid_to")
+  sslIssuer            String?               @map("ssl_issuer") @db.VarChar(255)
+  sslProtocol          String?               @map("ssl_protocol") @db.VarChar(20)
+  sslCheckedAt         DateTime?             @map("ssl_checked_at")
   department           Department            @relation(fields: [departmentId], references: [id])
   monitoringLogs       MonitoringLog[]
   incidents            Incident[]
@@ -114,24 +118,24 @@ model Screenshot {
 
 // 8. Incidents
 model Incident {
-  id            Int              @id @default(autoincrement())
-  applicationId Int              @map("application_id")
-  ticketNumber  String?          @unique @map("ticket_number") @db.VarChar(50)
-  opdName       String?          @map("opd_name") @db.VarChar(255)
-  severity      String?          @db.VarChar(50)
-  status        String           @default("active") @db.VarChar(50)
-  startedAt     String?          @map("started_at")
-  resolvedAt    DateTime?        @map("resolved_at")
-  duration      String?          @db.VarChar(50)
-  rootCause     String?          @map("root_cause") @db.Text
-  timeline      Json[]
-  cause         String?          @db.Text
-  isSuppressed  Boolean          @default(false) @map("is_suppressed")
-  createdAt     DateTime         @default(now()) @map("created_at")
-  updatedAt     DateTime         @updatedAt @map("updated_at")
-  application   Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  notifications Notification[]
-  updates       IncidentUpdate[]
+  id             Int              @id @default(autoincrement())
+  applicationId  Int              @map("application_id")
+  ticketNumber   String?          @unique @map("ticket_number") @db.VarChar(50)
+  opdName        String?          @map("opd_name") @db.VarChar(255)
+  severity       String?          @db.VarChar(50)
+  status         String           @default("active") @db.VarChar(50)
+  startedAt      String?          @map("started_at")
+  resolvedAt     DateTime?        @map("resolved_at")
+  duration       String?          @db.VarChar(50)
+  rootCause      String?          @map("root_cause") @db.Text
+  timeline       Json[]
+  cause          String?          @db.Text
+  isSuppressed   Boolean          @default(false) @map("is_suppressed")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  application    Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  notifications  Notification[]
+  updates        IncidentUpdate[]
 
   @@map("incidents")
 }
@@ -144,7 +148,7 @@ model Notification {
   recipient  String    @db.VarChar(150)
   message    String    @db.Text
   status     String    @default("PENDING") @db.VarChar(20)
-  isRead     Boolean   @default(false) @map("is_read") // TAMBAHKAN BARIS INI
+  isRead     Boolean   @default(false) @map("is_read")
   sentAt     DateTime? @map("sent_at")
   createdAt  DateTime  @default(now()) @map("created_at")
   incident   Incident  @relation(fields: [incidentId], references: [id], onDelete: Cascade)

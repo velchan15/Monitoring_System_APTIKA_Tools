@@ -161,33 +161,38 @@ function DashboardContent() {
           onNavigateTab={handleNav}
         />
 
-        <main className="flex-1 p-4 sm:p-5 space-y-4">
+        <main className="flex-1 p-4 sm:p-5 space-y-4 md:space-y-6">
           {activeTab === "dashboard" && (
             <>
               <DashboardGreeting name={user?.name} onlineCount={onlineMetricVal} totalCount={totalMetricVal} />
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              
+              {/* PERBAIKAN 1: Pembungkus Kartu Metrik - Pastikan 5 kolom sejajar */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 {appMetrics.map((metric) => (
                   <StatusCard key={metric.key} metric={metric as any} />
                 ))}
               </div>
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
-                <div className="xl:col-span-3" style={{ minHeight: 320 }}>
+              
+              {/* PERBAIKAN 2: Pembungkus Grafik - Pastikan sejajar 2:1 */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
                   <StatusTrendChart title="Grafik Status Aplikasi" appMetrics={appMetrics} />
                 </div>
-                <div className="xl:col-span-2" style={{ minHeight: 320 }}>
+                <div className="lg:col-span-1">
                   <StatusDonutChart appMetrics={appMetrics} />
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
-                <div className="xl:col-span-3">
+
+              {/* PERBAIKAN 3: Pembungkus Daftar Insiden & Uptime - Pastikan sejajar 2:1 */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
                   <DashboardIncidentList limit={5} />
                 </div>
-                <div className="xl:col-span-2">
+                <div className="lg:col-span-1">
                   <TopUptimeWidget limit={6} onViewAll={() => setActiveTab("uptime")} />
                 </div>
               </div>
               
-              {/* Me-passing data aplikasi ke DashboardOpdSummary */}
               <DashboardOpdSummary 
                 applications={applicationsData}
                 onViewAll={() => setActiveTab("opd")} 
@@ -212,8 +217,6 @@ function DashboardContent() {
           {activeTab === "opd" && (
             <div className="space-y-4">
               <PageHeader title="Dashboard Perangkat Daerah (OPD)" subtitle="Pemantauan kinerja sistem per instansi Pemerintah Provinsi Jawa Barat" tag="Per OPD" />
-              
-              {/* Me-passing data aplikasi ke OpdSummaryGrid */}
               <OpdSummaryGrid applications={applicationsData} />
             </div>
           )}
@@ -298,7 +301,6 @@ function DashboardContent() {
   );
 }
 
-// **Gatekeeper Utama dengan Mode Login & Register**
 function RootAuthGate() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingCheck, setIsLoadingCheck] = useState(true);

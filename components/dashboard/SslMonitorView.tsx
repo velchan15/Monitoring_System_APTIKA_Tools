@@ -1,25 +1,53 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
-  ExternalLink,
   Lock,
-  RefreshCw,
   Search,
-  ShieldAlert,
-  ShieldCheck,
-  Zap,
+  XCircle,
 } from "lucide-react";
 
-import { initialUptimeServices, type UptimeService } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
 
 export function SslMonitorView() {
-  const [services] = useState<UptimeService[]>(initialUptimeServices);
+  const [services, setServices] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "warning" | "valid">("all");
+
+  useEffect(() => {
+    fetch("http://localhost:3001/api/applications")
+      .then((res) => res.json())
+      .then((json) => {
+        const data = json.data || json;
+        
+        const validSslApps = data
+          .filter((app: any) => app.url && app.sslValidTo)
+          .map((app: any) => {
+            const validToDate = new Date(app.sslValidTo);
+            const daysLeft = Math.ceil((validToDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+            
+            let status = "valid";
+            if (daysLeft < 0) status = "expired";
+            else if (daysLeft <= 30) status = "warning";
+            
+            return {
+              id: app.id,
+              name: app.name,
+              url: app.url,
+              opdName: app.department?.name || app.opdName || "Pemerintah Provinsi Jawa Barat",
+              sslIssuer: app.sslIssuer || "Unknown CA",
+              sslExpiryDays: daysLeft,
+              sslStatus: status,
+              sslProtocol: app.sslProtocol || "TLS / HTTPS"
+            };
+          });
+
+        setServices(validSslApps);
+      })
+      .catch((err) => console.error("Gagal fetch data SSL:", err));
+  }, []);
 
   const sslServices = useMemo(() => {
     return services.filter((srv) => {
@@ -28,17 +56,17 @@ export function SslMonitorView() {
         const matches =
           srv.name.toLowerCase().includes(q) ||
           srv.url.toLowerCase().includes(q) ||
-          srv.opdName.toLowerCase().includes(q) ||
-          srv.sslIssuer.toLowerCase().includes(q);
+          (srv.opdName && srv.opdName.toLowerCase().includes(q)) ||
+          (srv.sslIssuer && srv.sslIssuer.toLowerCase().includes(q));
         if (!matches) return false;
       }
-      if (filter === "warning" && srv.sslStatus !== "warning") return false;
+      if (filter === "warning" && srv.sslStatus !== "warning" && srv.sslStatus !== "expired") return false;
       if (filter === "valid" && srv.sslStatus !== "valid") return false;
       return true;
     });
   }, [services, searchQuery, filter]);
 
-  const warningCount = services.filter((s) => s.sslStatus === "warning").length;
+  const warningCount = services.filter((s) => s.sslStatus === "warning" || s.sslStatus === "expired").length;
 
   return (
     <div className="space-y-4">
@@ -52,7 +80,7 @@ export function SslMonitorView() {
               </h2>
               {warningCount > 0 && (
                 <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800 animate-pulse">
-                  {warningCount} Perlu Perpanjangan Segera
+                  {warningCount} Perlu Perpanjangan
                 </span>
               )}
             </div>
@@ -106,13 +134,15 @@ export function SslMonitorView() {
             <tr>
               <th className="px-4 py-3 sm:px-5">Domain & Layanan</th>
               <th className="px-4 py-3">Perangkat Daerah</th>
-              <th className="px-4 py-3">Penerbit Sertifikat (CA)</th>
-              <th className="px-4 py-3">Sisa Masa Aktif</th>
-              <th className="px-4 py-3">Status Enkripsi</th>
+              {/* Tambahan whitespace-nowrap agar header tidak terlipat */}
+              <th className="px-4 py-3 whitespace-nowrap">Penerbit Sertifikat (CA)</th>
+              <th className="px-4 py-3 whitespace-nowrap">Sisa Masa Aktif</th>
+              <th className="px-4 py-3 whitespace-nowrap">Status Enkripsi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {sslServices.map((srv) => {
+              const isExpired = srv.sslStatus === "expired";
               const isWarning = srv.sslStatus === "warning";
 
               return (
@@ -134,12 +164,19 @@ export function SslMonitorView() {
                     {srv.opdName}
                   </td>
 
-                  <td className="px-4 py-3 font-mono text-[11px] text-ink/60">
+                  {/* Tambahan whitespace-nowrap pada sel CA */}
+                  <td className="px-4 py-3 font-mono text-[11px] text-ink/60 whitespace-nowrap">
                     {srv.sslIssuer}
                   </td>
 
-                  <td className="px-4 py-3">
-                    {isWarning ? (
+                  {/* Tambahan whitespace-nowrap pada sel Badge Kedaluwarsa */}
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    {isExpired ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2.5 py-0.5 font-mono text-xs font-bold text-red-700">
+                        <XCircle className="h-3.5 w-3.5 text-red-600" />
+                        Kedaluwarsa {Math.abs(srv.sslExpiryDays)} Hari
+                      </span>
+                    ) : isWarning ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 font-mono text-xs font-bold text-amber-800">
                         <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
                         {srv.sslExpiryDays} Hari Lagi
@@ -152,9 +189,10 @@ export function SslMonitorView() {
                     )}
                   </td>
 
-                  <td className="px-4 py-3">
+                  {/* Tambahan whitespace-nowrap pada sel Badge Protokol */}
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                      TLS 1.3 / HTTPS
+                      {srv.sslProtocol}
                     </span>
                   </td>
                 </tr>

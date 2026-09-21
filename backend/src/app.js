@@ -10,8 +10,11 @@ const applicationRoutes = require("./routes/application.routes");
 const notificationRoutes = require("./routes/notification.routes");
 const { chromium } = require("playwright");
 
-// Folder public/screenshots ada di root project frontend (Next.js), BUKAN di
-// dalam folder backend — jadi dari backend/src/app.js naik 2 level dulu.
+// 1. Impor background workers di bagian atas file
+const { startSslWorker } = require("../workers/sslWorker");
+const { startUptimeWorker } = require("../workers/uptimeWorker");
+
+// Folder public/screenshots ada di root project frontend (Next.js)
 const SCREENSHOTS_ROOT = path.join(__dirname, "..", "..", "public", "screenshots");
 
 function sanitizeSegment(value, fallback) {
@@ -28,6 +31,18 @@ function sanitizeSegment(value, fallback) {
 function createApp({ readiness = async () => ({ database: "error", redis: "error" }) } = {}) {
   const app = express();
 
+  // 2. Jalankan background workers sekali saja saat aplikasi di-init
+  if (!global._workersStarted) {
+    global._workersStarted = true;
+    try {
+      startSslWorker();
+      startUptimeWorker();
+      console.log("🚀 Background workers (SSL & Uptime) berhasil diinisialisasi.");
+    } catch (err) {
+      console.error("❌ Gagal memulai background workers:", err.message);
+    }
+  }
+
   app.use(express.json());
   app.use(cors());
 
@@ -41,7 +56,7 @@ function createApp({ readiness = async () => ({ database: "error", redis: "error
   app.use("/api/incidents", incidentRoutes);
 
   // ==========================================
-  // ENDPOINT REAL-TIME SCREENSHOT PLAYWRIGHT (.webp + simpan ke folder)
+  // ENDPOINT REAL-TIME SCREENSHOT PLAYWRIGHT
   // ==========================================
   app.get("/api/screenshot", async (req, res) => {
     const targetUrl = req.query.url;
@@ -60,12 +75,10 @@ function createApp({ readiness = async () => ({ database: "error", redis: "error
       browser = await chromium.launch({ headless: true });
       const context = await browser.newContext({
         viewport: { width: 1280, height: 720 },
-        ignoreHTTPSErrors: true, // banyak domain .go.id sertifikatnya bermasalah
+        ignoreHTTPSErrors: true,
       });
       const page = await context.newPage();
 
-      // networkidle: tunggu sampai request jaringan reda, penting buat SPA
-      // yang render kontennya belakangan lewat JavaScript.
       const gotoResult = await page
         .goto(targetUrl, { timeout: 20000, waitUntil: "networkidle" })
         .catch((err) => {
@@ -74,10 +87,9 @@ function createApp({ readiness = async () => ({ database: "error", redis: "error
         });
 
       if (!gotoResult) {
-        console.warn(`⚠️  Navigasi ke ${targetUrl} gagal/timeout — screenshot mungkin blank.`);
+        console.warn(`⚠️ Navigasi ke ${targetUrl} gagal/timeout — screenshot mungkin blank.`);
       }
 
-      // Jeda tambahan buat elemen yang masih nge-render (animasi masuk, lazy image, dll)
       await page.waitForTimeout(2000);
 
       const pngBuffer = await page.screenshot({ fullPage: false });
@@ -118,7 +130,7 @@ function createApp({ readiness = async () => ({ database: "error", redis: "error
     });
   });
 
-  // 404 Handler (harus selalu di paling bawah, setelah semua route)
+  // 404 Handler
   app.use((_request, response) => {
     response.status(404).json({
       error: "not_found",
@@ -126,8 +138,6 @@ function createApp({ readiness = async () => ({ database: "error", redis: "error
     });
   });
 
-  // TIDAK ada app.listen() atau startUptimeWorker() di sini —
-  // itu tugasnya server.js, biar port cuma di-bind sekali.
   return app;
 }
 
