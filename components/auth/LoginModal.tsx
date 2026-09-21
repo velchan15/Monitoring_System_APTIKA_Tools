@@ -17,16 +17,16 @@ import { PRESET_ACCOUNTS, useAuth, type UserRole } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 
 export function LoginModal() {
-  const { isLoginModalOpen, setLoginModalOpen, loginAsPreset } = useAuth();
+  // Hapus 'loginAsPreset' karena tidak ada di AuthContext
+  const { isLoginModalOpen, setLoginModalOpen } = useAuth();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState(""); // <-- Tambah state password
-  const [error, setError] = useState("");       // <-- Tambah state error
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"preset" | "custom">("preset");
 
   if (!isLoginModalOpen) return null;
 
-  // Hubungkan ke backend Express
   const handleCustomSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -43,12 +43,11 @@ export function LoginModal() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Email atau password salah.");
 
-      // Simpan token ke localStorage
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      sessionStorage.setItem("token", data.token);
+      sessionStorage.setItem("user", JSON.stringify(data.user));
 
       setLoginModalOpen(false);
-      window.location.reload(); // Muat ulang agar UI mengenali sesi login
+      window.location.reload();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -58,15 +57,12 @@ export function LoginModal() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-      {/* Backdrop */}
       <div
         className="fixed inset-0 bg-ink/60 backdrop-blur-sm"
         onClick={() => setLoginModalOpen(false)}
       />
 
-      {/* Modal Container */}
       <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
-        {/* Header */}
         <div className="flex items-center justify-between border-b border-border bg-sidebar px-6 py-4 text-white">
           <div className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand font-mono text-xs font-bold text-white">
@@ -86,7 +82,6 @@ export function LoginModal() {
           </button>
         </div>
 
-        {/* Tab switcher */}
         <div className="flex border-b border-border bg-canvas/40 px-6 pt-3">
           <button
             type="button"
@@ -114,7 +109,6 @@ export function LoginModal() {
           </button>
         </div>
 
-        {/* Modal Body */}
         <div className="p-6">
           {activeTab === "preset" ? (
             <div className="space-y-3">
@@ -128,9 +122,8 @@ export function LoginModal() {
                     key={preset.id}
                     type="button"
                     onClick={() => {
-                      // Jika ingin langsung lempar ke form manual atau sesuaikan email preset ke state
                       setEmail(preset.email);
-                      setPassword("admin123"); // Password default hasil seed
+                      setPassword("admin123");
                       setActiveTab("custom");
                     }}
                     className="flex w-full items-center justify-between rounded-xl border border-border p-3 text-left transition-all bg-white hover:border-brand/40 hover:bg-canvas/50"
@@ -177,7 +170,6 @@ export function LoginModal() {
                 </div>
               </div>
 
-              {/* Tambahan Input Password */}
               <div>
                 <label className="block text-xs font-semibold text-ink">Password:</label>
                 <div className="relative mt-1">
@@ -205,7 +197,6 @@ export function LoginModal() {
           )}
         </div>
 
-        {/* Footer */}
         <div className="border-t border-border bg-canvas/30 px-6 py-3 text-center text-[11px] text-ink/45">
           Diskominfo Provinsi Jawa Barat · Single Sign-On Ready
         </div>

@@ -16,6 +16,26 @@ export interface UserProfile {
   avatarBg?: string;
 }
 
+// Tambahkan data preset akun demo/mock agar LoginModal tidak error saat build
+export const PRESET_ACCOUNTS: UserProfile[] = [
+  {
+    id: "1",
+    name: "Super Admin Diskominfo",
+    email: "admin@diskominfo.go.id",
+    role: "super_admin",
+    roleLabel: "Super Admin APTIKA",
+    avatarBg: "bg-brand text-white",
+  },
+  {
+    id: "2",
+    name: "Operator Jabar",
+    email: "operator@jabarprov.go.id",
+    role: "operator",
+    roleLabel: "Operator / Viewer",
+    avatarBg: "bg-brand text-white",
+  }
+];
+
 interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
@@ -66,7 +86,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
-      // Mengubah localStorage menjadi sessionStorage
       const savedUser = sessionStorage.getItem("user");
       if (savedUser) {
         setUser(formatUserData(JSON.parse(savedUser)));
@@ -79,7 +98,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const switchUser = (selectedUser: UserProfile) => {
     const formatted = formatUserData(selectedUser);
     setUser(formatted);
-    // Mengubah localStorage menjadi sessionStorage
     sessionStorage.setItem("user", JSON.stringify(formatted));
     setLoginModalOpen(false);
     window.location.reload();
@@ -87,7 +105,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null);
-    // Mengubah localStorage menjadi sessionStorage
     sessionStorage.removeItem("token");
     sessionStorage.removeItem("user");
     window.location.reload();
