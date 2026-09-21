@@ -20,7 +20,6 @@ import {
 import { cn } from "@/lib/utils";
 import { SidebarBadge, type SidebarBadgeVariant } from "@/components/ui/SidebarBadge";
 import { useAuth } from "@/lib/auth-context";
-import { API_URL } from "@/lib/api";
 
 export type NavTabId =
   | "dashboard"
@@ -57,6 +56,7 @@ interface MonitoringSidebarProps {
   activeTab: NavTabId;
   onSelectTab: (tab: NavTabId) => void;
   unreadNotifCount?: number;
+  activeIncidentCount?: number; // <-- Diperlukan agar cocok dengan app/page.tsx
 }
 
 export function MonitoringSidebar({
@@ -67,28 +67,26 @@ export function MonitoringSidebar({
   unreadNotifCount = 0,
 }: MonitoringSidebarProps) {
   const { user, isSuperAdmin } = useAuth();
-
-  // State untuk menghitung total aplikasi, insiden, & peringatan SSL secara real-time
+  
   const [totalAppsCount, setTotalAppsCount] = useState<number | null>(null);
   const [activeIncidentCount, setActiveIncidentCount] = useState<number>(0);
   const [sslWarningCount, setSslWarningCount] = useState<number>(0);
 
   const fetchAppCount = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/applications`);
+      const res = await fetch("http://localhost:3001/api/applications");
       const json = await res.json();
       const data = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
-
+      
       setTotalAppsCount(data.length);
 
-      // Hitung peringatan SSL (sisa hari <= 30 atau sudah kedaluwarsa)
       const sslWarnings = data.filter((app: any) => {
         if (!app.url || !app.sslValidTo) return false;
         const validToDate = new Date(app.sslValidTo);
         const daysLeft = Math.ceil((validToDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
         return daysLeft <= 30;
       }).length;
-
+      
       setSslWarningCount(sslWarnings);
     } catch (error) {
       console.error("Gagal mengambil data aplikasi untuk sidebar:", error);
@@ -98,12 +96,12 @@ export function MonitoringSidebar({
   const fetchIncidentCount = async () => {
     try {
       const token = localStorage.getItem("token") || "";
-      const res = await fetch(`${API_URL}/api/incidents`, {
+      const res = await fetch("http://localhost:3001/api/incidents", {
         headers: { "Authorization": `Bearer ${token}` }
       });
       const json = await res.json();
       const data = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
-
+      
       const activeCount = data.filter((inc: any) => inc.status !== "resolved").length;
       setActiveIncidentCount(activeCount);
     } catch (error) {
@@ -114,7 +112,7 @@ export function MonitoringSidebar({
   useEffect(() => {
     fetchAppCount();
     fetchIncidentCount();
-
+    
     const interval = setInterval(() => {
       fetchAppCount();
       fetchIncidentCount();
@@ -122,7 +120,7 @@ export function MonitoringSidebar({
 
     const handleAppChange = () => fetchAppCount();
     const handleIncidentChange = () => fetchIncidentCount();
-
+    
     window.addEventListener("appDataChanged", handleAppChange);
     window.addEventListener("incidentDataChanged", handleIncidentChange);
 
@@ -138,12 +136,12 @@ export function MonitoringSidebar({
       title: "MONITORING UTAMA",
       items: [
         { id: "dashboard", name: "Dashboard", icon: LayoutDashboard },
-        {
-          id: "uptime",
-          name: "Daftar Aplikasi & Uptime",
-          icon: Server,
-          badge: totalAppsCount !== null ? String(totalAppsCount) : "...",
-          badgeVariant: "neutral"
+        { 
+          id: "uptime", 
+          name: "Daftar Aplikasi & Uptime", 
+          icon: Server, 
+          badge: totalAppsCount !== null ? String(totalAppsCount) : "...", 
+          badgeVariant: "neutral" 
         },
         {
           id: "incidents",
@@ -152,12 +150,12 @@ export function MonitoringSidebar({
           badge: activeIncidentCount > 0 ? `${activeIncidentCount} Aktif` : undefined,
           badgeVariant: "red",
         },
-        {
-          id: "ssl",
-          name: "SSL Certificate",
-          icon: ShieldCheck,
-          badge: sslWarningCount > 0 ? `${sslWarningCount} Warn` : undefined,
-          badgeVariant: "amber"
+        { 
+          id: "ssl", 
+          name: "SSL Certificate", 
+          icon: ShieldCheck, 
+          badge: sslWarningCount > 0 ? `${sslWarningCount} Warn` : undefined, 
+          badgeVariant: "amber" 
         },
         { id: "response_time", name: "Response Time", icon: Clock },
       ],
