@@ -56,6 +56,7 @@ interface MonitoringSidebarProps {
   activeTab: NavTabId;
   onSelectTab: (tab: NavTabId) => void;
   unreadNotifCount?: number;
+  activeIncidentCount?: number;
 }
 
 export function MonitoringSidebar({
@@ -67,7 +68,6 @@ export function MonitoringSidebar({
 }: MonitoringSidebarProps) {
   const { user, isSuperAdmin } = useAuth();
   
-  // State untuk menghitung total aplikasi, insiden, & peringatan SSL secara real-time
   const [totalAppsCount, setTotalAppsCount] = useState<number | null>(null);
   const [activeIncidentCount, setActiveIncidentCount] = useState<number>(0);
   const [sslWarningCount, setSslWarningCount] = useState<number>(0);
@@ -80,7 +80,6 @@ export function MonitoringSidebar({
       
       setTotalAppsCount(data.length);
 
-      // Hitung peringatan SSL (sisa hari <= 30 atau sudah kedaluwarsa)
       const sslWarnings = data.filter((app: any) => {
         if (!app.url || !app.sslValidTo) return false;
         const validToDate = new Date(app.sslValidTo);
@@ -103,7 +102,6 @@ export function MonitoringSidebar({
       const json = await res.json();
       const data = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
       
-      // Hitung hanya insiden yang statusnya BUKAN 'resolved' (selesai)
       const activeCount = data.filter((inc: any) => inc.status !== "resolved").length;
       setActiveIncidentCount(activeCount);
     } catch (error) {
@@ -120,7 +118,6 @@ export function MonitoringSidebar({
       fetchIncidentCount();
     }, 30000);
 
-    // Menerima event custom agar sidebar langsung update detik itu juga
     const handleAppChange = () => fetchAppCount();
     const handleIncidentChange = () => fetchIncidentCount();
     
