@@ -1,5 +1,6 @@
 "use client";
 
+import { API_URL } from "@/lib/api";
 import { useState, useEffect } from "react";
 import { Activity, Mail, Lock, User, Loader2, UserPlus, ArrowLeft } from "lucide-react";
 
@@ -95,7 +96,7 @@ function DashboardContent() {
   // Fungsi untuk menarik data dari API backend dengan penanganan status yang fleksibel
   const fetchAppMetrics = async () => {
     try {
-      const res = await fetch("/api/applications");
+      const res = await fetch("${API_URL}/api/applications");
       const jsonRes = await res.json();
       const data = jsonRes.data || jsonRes;
 
@@ -330,7 +331,7 @@ function RootAuthGate() {
     setIsLoading(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch("${API_URL}/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -356,7 +357,7 @@ function RootAuthGate() {
     setIsLoading(true);
 
     try {
-      const res = await fetch("/api/users", {
+      const res = await fetch("/${API_URL}/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
