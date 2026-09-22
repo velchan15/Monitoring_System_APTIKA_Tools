@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { API_URL } from "@/lib/api";
 
 export function SslMonitorView() {
   const [services, setServices] = useState<any[]>([]);
@@ -17,7 +18,7 @@ export function SslMonitorView() {
   const [filter, setFilter] = useState<"all" | "warning" | "valid">("all");
 
   useEffect(() => {
-    fetch("http://localhost:3001/api/applications")
+    fetch(`${API_URL}/api/applications`)
       .then((res) => res.json())
       .then((json) => {
         const data = json.data || json;
@@ -134,7 +135,6 @@ export function SslMonitorView() {
             <tr>
               <th className="px-4 py-3 sm:px-5">Domain & Layanan</th>
               <th className="px-4 py-3">Perangkat Daerah</th>
-              {/* Tambahan whitespace-nowrap agar header tidak terlipat */}
               <th className="px-4 py-3 whitespace-nowrap">Penerbit Sertifikat (CA)</th>
               <th className="px-4 py-3 whitespace-nowrap">Sisa Masa Aktif</th>
               <th className="px-4 py-3 whitespace-nowrap">Status Enkripsi</th>
@@ -164,12 +164,10 @@ export function SslMonitorView() {
                     {srv.opdName}
                   </td>
 
-                  {/* Tambahan whitespace-nowrap pada sel CA */}
                   <td className="px-4 py-3 font-mono text-[11px] text-ink/60 whitespace-nowrap">
                     {srv.sslIssuer}
                   </td>
 
-                  {/* Tambahan whitespace-nowrap pada sel Badge Kedaluwarsa */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     {isExpired ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2.5 py-0.5 font-mono text-xs font-bold text-red-700">
@@ -189,7 +187,6 @@ export function SslMonitorView() {
                     )}
                   </td>
 
-                  {/* Tambahan whitespace-nowrap pada sel Badge Protokol */}
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
                       {srv.sslProtocol}
