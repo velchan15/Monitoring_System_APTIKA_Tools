@@ -1,10 +1,8 @@
 const axios = require('axios');
+const https = require('https');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// MonitoringLog.monitoringNodeId wajib diisi (bukan optional) — jadi worker ini
-// butuh 1 baris MonitoringNode buat mewakili "server yang jalanin pengecekan ini".
-// Dibuat otomatis kalau belum ada, lalu id-nya di-cache biar ga query berulang.
 const NODE_NAME = "Monitor Lokal";
 let cachedNodeId = null;
 
@@ -17,13 +15,18 @@ async function getMonitoringNodeId() {
       data: { 
         name: NODE_NAME, 
         isActive: true,
-        location: "Lokal" // <-- Tambahkan baris ini
+        location: "Lokal" 
       } 
     });
   }
   cachedNodeId = node.id;
   return cachedNodeId;
 }
+
+// Menyiapkan agen HTTPS agar mengabaikan masalah SSL lama dari server target
+const httpsAgent = new https.Agent({  
+  rejectUnauthorized: false 
+});
 
 async function runUptimeCheck() {
   console.log("🔄 Memulai pemeriksaan kesehatan aplikasi (Uptime & Ping)...");
@@ -42,7 +45,18 @@ async function runUptimeCheck() {
       let errorMessage = null;
 
       try {
-        const response = await axios.get(app.url, { timeout: 8000 });
+        // PERBAIKAN: Gunakan batas waktu 15 detik dan menyamar sebagai browser sungguhan
+        const response = await axios.get(app.url, { 
+          timeout: 15000,
+          httpsAgent,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Connection': 'keep-alive'
+          }
+        });
+        
         responseTimeMs = Date.now() - startTime;
         statusCode = response.status;
         if (response.status >= 200 && response.status < 400) {
@@ -55,18 +69,12 @@ async function runUptimeCheck() {
         errorMessage = error.message;
       }
 
-      // Status ringkas buat Application.status — ini yang dipakai frontend
-      // (IncidentTable.tsx) buat deteksi aplikasi mana yang lagi bermasalah.
-      const WARNING_THRESHOLD_MS = 3000;
+      const WARNING_THRESHOLD_MS = 5000; // Naikkan toleransi "Warning" jadi 5 detik
       let appStatus = "ONLINE";
       if (!isUp) appStatus = "OFFLINE";
       else if (responseTimeMs > WARNING_THRESHOLD_MS) appStatus = "WARNING";
 
-      // Ditaruh dalam try/catch TERPISAH per-aplikasi — supaya kalau 1 aplikasi
-      // gagal ditulis ke DB, aplikasi lain di daftar tetap lanjut dicek (sebelumnya
-      // 1 error di tengah loop bikin SEMUA aplikasi sisanya ikut ke-skip).
       try {
-        // 1. Simpan hasil pengecekan (nama field harus PERSIS sama dengan schema.prisma)
         await prisma.monitoringLog.create({
           data: {
             applicationId: app.id,
@@ -79,13 +87,11 @@ async function runUptimeCheck() {
           },
         });
 
-        // 2. Update status ringkas di Application (dipakai frontend)
         await prisma.application.update({
           where: { id: app.id },
           data: { status: appStatus },
         });
 
-        // 3. Perbarui/bikin ringkasan harian (field: successfulChecks, uptimePercentage)
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -120,8 +126,6 @@ async function runUptimeCheck() {
           });
         }
 
-        // 4. Kalau offline dan belum ada insiden aktif, buat insiden baru
-        //    (field disesuaikan dengan model Incident — ga ada `departmentId`/`title`)
         if (!isUp) {
           const activeIncident = await prisma.incident.findFirst({
             where: { applicationId: app.id, status: { not: "resolved" } },
@@ -153,7 +157,7 @@ async function runUptimeCheck() {
 
 function startUptimeWorker() {
   console.log("🕒 Worker pemantau uptime berjalan setiap 30 detik.");
-  runUptimeCheck(); // jalan langsung sekali, ga nunggu interval 30 detik pertama
+  runUptimeCheck(); 
   setInterval(runUptimeCheck, 30 * 1000);
 }
 
