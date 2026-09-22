@@ -10,6 +10,7 @@ import type { Incident, IncidentStatus } from "@/lib/types/incident";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { initialOpdSummaries } from "@/lib/dashboard-data";
 import { useAuth } from "@/lib/auth-context";
+import { API_URL } from "@/lib/api";
 
 const SEVERITY_CONFIG = {
   critical: { label: "Kritis / Offline", class: "bg-red-100 text-red-700 border-red-200" },
@@ -253,8 +254,8 @@ export function IncidentManagementView() {
       const token = localStorage.getItem("token") || ""; 
       
       const [resInc, resApps] = await Promise.all([
-        fetch("http://localhost:3001/api/incidents", { headers: { "Authorization": `Bearer ${token}` } }),
-        fetch("http://localhost:3001/api/applications", { headers: { "Authorization": `Bearer ${token}` } })
+        fetch(`${API_URL}/api/incidents`, { headers: { "Authorization": `Bearer ${token}` } }),
+        fetch(`${API_URL}/api/applications`, { headers: { "Authorization": `Bearer ${token}` } })
       ]);
       
       const jsonInc = await resInc.json();
@@ -305,7 +306,7 @@ export function IncidentManagementView() {
           rootCause: inc.rootCause || undefined,
           impact: inc.impact || "Berpotensi mengganggu pelayanan publik.",
           timeline: inc.timeline && inc.timeline.length > 0 ? inc.timeline : [{ time: formattedDate, note: "Tiket insiden dibuat oleh sistem monitoring." }],
-          screenshotUrl: appUrl ? `http://localhost:3001/api/screenshot?url=${encodeURIComponent(appUrl)}` : undefined
+          screenshotUrl: appUrl ? `${API_URL}/api/screenshot?url=${encodeURIComponent(appUrl)}` : undefined
         };
       });
 
@@ -352,7 +353,7 @@ export function IncidentManagementView() {
 
     try {
       const token = localStorage.getItem("token") || "";
-      await fetch(`http://localhost:3001/api/incidents/${id}/status`, {
+      await fetch(`${API_URL}/api/incidents/${id}/status`, {
         method: "PUT",
         headers: { 
           "Content-Type": "application/json",
