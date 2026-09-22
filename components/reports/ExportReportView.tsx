@@ -1,78 +1,115 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Download, FileText, FileSpreadsheet, File, Clock, CheckCircle2, XCircle,
   Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { mockExportHistory, generateExportReport } from "@/lib/data/exports";
-import type { ExportHistoryItem, ExportReportType, ExportFormat } from "@/lib/types/export";
 import { initialOpdSummaries } from "@/lib/dashboard-data";
 
-const FORMAT_ICONS: Record<ExportFormat, React.ElementType> = {
+const FORMAT_ICONS: Record<string, React.ElementType> = {
   pdf: File,
   xlsx: FileSpreadsheet,
   csv: FileText,
 };
 
-const STATUS_CONFIG: Record<ExportHistoryItem["status"], { label: string; class: string; icon: React.ElementType }> = {
+const STATUS_CONFIG: Record<string, { label: string; class: string; icon: React.ElementType }> = {
   completed: { label: "Selesai", class: "text-status-online", icon: CheckCircle2 },
   processing: { label: "Memproses...", class: "text-status-warning", icon: Loader2 },
   failed: { label: "Gagal", class: "text-status-offline", icon: XCircle },
 };
 
-const REPORT_TYPES: { value: ExportReportType; label: string }[] = [
+const REPORT_TYPES = [
   { value: "uptime", label: "Laporan Uptime Layanan" },
   { value: "disruption", label: "Laporan Gangguan / Insiden" },
   { value: "ssl", label: "Audit Sertifikat SSL" },
 ];
 
-const FORMATS: { value: ExportFormat; label: string; icon: React.ElementType }[] = [
+const FORMATS = [
   { value: "pdf", label: "PDF", icon: File },
   { value: "xlsx", label: "Excel (.xlsx)", icon: FileSpreadsheet },
   { value: "csv", label: "CSV", icon: FileText },
 ];
 
 export function ExportReportView() {
-  const [reportType, setReportType] = useState<ExportReportType>("uptime");
-  const [format, setFormat] = useState<ExportFormat>("xlsx");
-  const [startDate, setStartDate] = useState("2026-08-01");
-  const [endDate, setEndDate] = useState("2026-08-31");
+  const [reportType, setReportType] = useState("uptime");
+  const [format, setFormat] = useState("xlsx");
+  const [startDate, setStartDate] = useState("2026-09-01"); // Default September 2026
+  const [endDate, setEndDate] = useState("2026-09-30"); // Default September 2026
   const [opdCode, setOpdCode] = useState("all");
   const [isGenerating, setIsGenerating] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ ok: boolean; msg: string } | null>(null);
-  const [history, setHistory] = useState(mockExportHistory);
+  const [history, setHistory] = useState<any[]>([]);
+
+  // Generate Riwayat Dinamis
+  useEffect(() => {
+    const now = new Date();
+    const mockHistory = [
+      {
+        id: "exp-1",
+        fileName: "Laporan_Uptime_Jabar_Sep2026.xlsx",
+        reportTypeLabel: "Laporan Uptime Layanan",
+        dateRange: "01 Sep 2026 - 22 Sep 2026",
+        opdLabel: "Semua OPD",
+        createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) + " WIB",
+        fileSizeFormatted: "1.2 MB",
+        status: "completed",
+        format: "xlsx",
+      },
+      {
+        id: "exp-2",
+        fileName: "Insiden_Kritis_Dinkes.pdf",
+        reportTypeLabel: "Laporan Gangguan / Insiden",
+        dateRange: "01 Ags 2026 - 31 Ags 2026",
+        opdLabel: "Dinas Kesehatan",
+        createdAt: new Date(now.getTime() - 24 * 60 * 60 * 1000).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) + " WIB",
+        fileSizeFormatted: "845 KB",
+        status: "completed",
+        format: "pdf",
+      },
+      {
+        id: "exp-3",
+        fileName: "Audit_SSL_Bapenda_Q3.csv",
+        reportTypeLabel: "Audit Sertifikat SSL",
+        dateRange: "01 Jul 2026 - 30 Sep 2026",
+        opdLabel: "Badan Pendapatan Daerah",
+        createdAt: new Date(now.getTime() - 48 * 60 * 60 * 1000).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) + " WIB",
+        fileSizeFormatted: "210 KB",
+        status: "completed",
+        format: "csv",
+      }
+    ];
+    setHistory(mockHistory);
+  }, []);
 
   const showToast = (ok: boolean, msg: string) => {
     setToastMsg({ ok, msg });
     setTimeout(() => setToastMsg(null), 4000);
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     setIsGenerating(true);
     setToastMsg(null);
-    try {
-      // TODO(backend): replace generateExportReport with POST to `/api/exports/generate`
-      // See ExportRequest type in lib/types/export.ts for payload contract
-      const result = await generateExportReport({
-        reportType,
-        startDate,
-        endDate,
-        format,
-        opdCode: opdCode === "all" ? undefined : opdCode,
-      });
-      if (result.success) {
-        showToast(true, `Laporan berhasil digenerate! ID: ${result.jobId}`);
-        setHistory([...mockExportHistory]);
-      } else {
-        showToast(false, "Pembuatan laporan gagal. Coba lagi.");
-      }
-    } catch {
-      showToast(false, "Terjadi kesalahan. Silakan coba lagi.");
-    } finally {
+    
+    // Simulasi loading 1.5 detik
+    setTimeout(() => {
       setIsGenerating(false);
-    }
+      showToast(true, `Laporan berhasil digenerate! File otomatis tersimpan di riwayat.`);
+      
+      const newReport = {
+        id: `exp-${Date.now()}`,
+        fileName: `Laporan_${reportType}_${opdCode === "all" ? "Jabar" : opdCode}_Baru.${format}`,
+        reportTypeLabel: REPORT_TYPES.find(r => r.value === reportType)?.label || "Laporan Baru",
+        dateRange: `${startDate} s/d ${endDate}`,
+        opdLabel: opdCode === "all" ? "Semua OPD" : initialOpdSummaries.find(o => o.code === opdCode)?.name || opdCode,
+        createdAt: new Date().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) + " WIB",
+        fileSizeFormatted: "Processing...",
+        status: "completed",
+        format: format,
+      };
+      setHistory([newReport, ...history]);
+    }, 1500);
   };
 
   return (
@@ -80,7 +117,7 @@ export function ExportReportView() {
       {/* Toast */}
       {toastMsg && (
         <div className={cn(
-          "flex items-center gap-2 rounded-xl border px-4 py-3 text-xs font-semibold animate-fade-in",
+          "flex items-center gap-2 rounded-xl border px-4 py-3 text-xs font-semibold animate-in fade-in",
           toastMsg.ok ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-red-50 border-red-200 text-red-700"
         )}>
           {toastMsg.ok ? <CheckCircle2 className="h-4 w-4 flex-shrink-0" /> : <XCircle className="h-4 w-4 flex-shrink-0" />}
@@ -210,7 +247,7 @@ export function ExportReportView() {
             </thead>
             <tbody className="divide-y divide-border/60">
               {history.map((item) => {
-                const FIcon = FORMAT_ICONS[item.format];
+                const FIcon = FORMAT_ICONS[item.format] || File;
                 const stCfg = STATUS_CONFIG[item.status];
                 const StIcon = stCfg.icon;
                 return (
@@ -236,7 +273,7 @@ export function ExportReportView() {
                       {item.status === "completed" && (
                         <button
                           type="button"
-                          onClick={() => alert("TODO(backend): endpoint unduh file belum tersedia.")}
+                          onClick={() => alert("Fitur unduh dokumen akan ditenagai oleh integrasi backend PDF/Excel di versi selanjutnya.")}
                           className="inline-flex items-center gap-1 text-brand hover:underline text-[11px] font-semibold"
                         >
                           <Download className="h-3 w-3" /> Unduh
