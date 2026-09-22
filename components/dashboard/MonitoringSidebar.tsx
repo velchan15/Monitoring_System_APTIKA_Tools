@@ -74,7 +74,7 @@ export function MonitoringSidebar({
 
   const fetchAppCount = async () => {
     try {
-      const res = await fetch("${API_URL}/api/applications");
+      const res = await fetch(`${API_URL}/api/applications`);
       const json = await res.json();
       const data = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
       
@@ -96,7 +96,7 @@ export function MonitoringSidebar({
   const fetchIncidentCount = async () => {
     try {
       const token = localStorage.getItem("token") || "";
-      const res = await fetch("${API_URL}/api/incidents", {
+      const res = await fetch(`${API_URL}/api/incidents`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       const json = await res.json();
