@@ -14,6 +14,7 @@ import {
   X as XIcon,
 } from "lucide-react";
 
+import { API_URL } from "@/lib/api";
 import { type ServiceStatus } from "@/lib/dashboard-data";
 import { cn } from "@/lib/utils";
 
@@ -45,7 +46,7 @@ function useLiveUptimeServices() {
   useEffect(() => {
     const fetchApps = async () => {
       try {
-        const res = await fetch("http://localhost:3001/api/applications");
+        const res = await fetch(`${API_URL}/api/applications`);
         const json = await res.json();
         const data = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
 
@@ -178,7 +179,7 @@ export function UptimeList() {
   const handleDeleteApp = async (id: string, name: string) => {
     if (window.confirm(`Apakah kamu yakin ingin menghapus aplikasi "${name}"?`)) {
       try {
-        const res = await fetch(`http://localhost:3001/api/applications/${id}`, {
+        const res = await fetch(`${API_URL}/api/applications/${id}`, {
           method: "DELETE",
         });
 

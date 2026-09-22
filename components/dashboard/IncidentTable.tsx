@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { AlertOctagon, AlertTriangle, CheckCircle2, Eye, Info } from "lucide-react";
 
+import { API_URL } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import {
   type IncidentItem,
@@ -39,7 +40,7 @@ function useLiveIncidents() {
   const fetchIncidents = async () => {
     try {
       const token = localStorage.getItem("token") || ""; 
-      const res = await fetch("http://localhost:3001/api/incidents", {
+      const res = await fetch(`${API_URL}/api/incidents`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       
@@ -82,7 +83,7 @@ function useLiveIncidents() {
           description: inc.cause || inc.description || `Laporan gangguan terdeteksi pada sistem ${safeAppName}.`,
           timeline: inc.timeline && inc.timeline.length > 0 ? inc.timeline : [{ time: formattedDate, note: "Tiket insiden dibuat oleh sistem monitoring." }],
           screenshotUrl: inc.application?.url 
-            ? `http://localhost:3001/api/screenshot?url=${encodeURIComponent(inc.application.url)}` 
+            ? `${API_URL}/api/screenshot?url=${encodeURIComponent(inc.application.url)}` 
             : ""
         };
       });
@@ -123,7 +124,7 @@ export function DashboardIncidentList({ limit = 5 }: DashboardIncidentProps) {
   const handleUpdateStatus = async (id: string, newStatus: IncidentStatus, note?: string) => {
     try {
       const token = localStorage.getItem("token") || "";
-      const res = await fetch(`http://localhost:3001/api/incidents/${id}/status`, {
+      const res = await fetch(`${API_URL}/api/incidents/${id}/status`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -250,7 +251,7 @@ export function IncidentTable({ limit, showTitleHeader = true }: IncidentTablePr
   const handleUpdateStatus = async (id: string, newStatus: IncidentStatus, note?: string) => {
     try {
       const token = localStorage.getItem("token") || "";
-      const res = await fetch(`http://localhost:3001/api/incidents/${id}/status`, {
+      const res = await fetch(`${API_URL}/api/incidents/${id}/status`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
