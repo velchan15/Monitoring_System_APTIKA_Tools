@@ -1,172 +1,133 @@
-import {
-  AppLatencySummary,
-  LatencyDataPoint,
-  ResponseTimeFilter,
-  TimeRange,
-} from "@/lib/types/response-time";
+export type TimeRange = "24h" | "7d" | "30d";
 
-export const mockLatencySummaries: AppLatencySummary[] = [
+export interface LatencySummary {
+  appId: string;
+  appName: string;
+  opdCode: string;
+  opdName: string;
+  status: "normal" | "high" | "critical";
+  currentLatency: number;
+  avgLatency: number;
+  maxLatency: number;
+  p95Latency: number;
+  thresholdMs: number;
+  chartColor: string;
+}
+
+export const mockLatencySummaries: LatencySummary[] = [
   {
-    appId: "srv-01",
+    appId: "app-1",
     appName: "Portal Resmi Jabarprov",
-    opdName: "Dinas Komunikasi dan Informatika",
     opdCode: "DISKOMINFO",
+    opdName: "Dinas Komunikasi dan Informatika",
+    status: "normal",
     currentLatency: 42,
     avgLatency: 45,
-    minLatency: 32,
-    maxLatency: 88,
+    maxLatency: 89,
     p95Latency: 56,
     thresholdMs: 300,
-    status: "normal",
-    chartColor: "#0E9F6E", // Green
+    chartColor: "#10b981", // Emerald
   },
   {
-    appId: "srv-03",
+    appId: "app-2",
     appName: "SIMPUS Jabar Online",
-    opdName: "Dinas Kesehatan",
     opdCode: "DINKES",
+    opdName: "Dinas Kesehatan",
+    status: "critical",
     currentLatency: 3840,
     avgLatency: 1620,
-    minLatency: 280,
     maxLatency: 4200,
     p95Latency: 3900,
     thresholdMs: 1000,
-    status: "critical",
-    chartColor: "#DC2626", // Red
+    chartColor: "#ef4444", // Red
   },
   {
-    appId: "srv-04",
+    appId: "app-3",
     appName: "Portal Satu Data Jabar",
-    opdName: "Dinas Komunikasi dan Informatika",
     opdCode: "DISKOMINFO",
+    opdName: "Dinas Komunikasi dan Informatika",
+    status: "normal",
     currentLatency: 58,
     avgLatency: 62,
-    minLatency: 40,
-    maxLatency: 110,
+    maxLatency: 118,
     p95Latency: 75,
     thresholdMs: 400,
-    status: "normal",
-    chartColor: "#2451B0", // Blue
+    chartColor: "#3b82f6", // Blue
   },
   {
-    appId: "srv-05",
-    appName: "e-SAMSAT Jabar Mobile",
-    opdName: "Badan Pendapatan Daerah",
+    appId: "app-4",
+    appName: "Sistem Pajak Kendaraan (BAPENDA)",
     opdCode: "BAPENDA",
-    currentLatency: 64,
-    avgLatency: 68,
-    minLatency: 45,
-    maxLatency: 140,
-    p95Latency: 82,
-    thresholdMs: 500,
-    status: "normal",
-    chartColor: "#7C5CFC", // Purple
-  },
-  {
-    appId: "srv-07",
-    appName: "SIMPATIK Penanaman Modal",
-    opdName: "DPMPTSP Jabar",
-    opdCode: "DPMPTSP",
-    currentLatency: 1420,
-    avgLatency: 950,
-    minLatency: 110,
-    maxLatency: 1850,
-    p95Latency: 1540,
-    thresholdMs: 800,
+    opdName: "Badan Pendapatan Daerah",
     status: "high",
-    chartColor: "#D97706", // Amber
+    currentLatency: 850,
+    avgLatency: 620,
+    maxLatency: 1200,
+    p95Latency: 980,
+    thresholdMs: 800,
+    chartColor: "#f59e0b", // Amber
   },
   {
-    appId: "srv-09",
-    appName: "SIPD Keuangan & Aset",
-    opdName: "BPKAD Jabar",
-    opdCode: "BPKAD",
-    currentLatency: 76,
-    avgLatency: 82,
-    minLatency: 52,
-    maxLatency: 195,
-    p95Latency: 98,
-    thresholdMs: 500,
+    appId: "app-5",
+    appName: "Penerimaan Peserta Didik Baru (PPDB)",
+    opdCode: "DISDIK",
+    opdName: "Dinas Pendidikan",
     status: "normal",
-    chartColor: "#0284C7", // Sky
-  },
+    currentLatency: 120,
+    avgLatency: 150,
+    maxLatency: 350,
+    p95Latency: 210,
+    thresholdMs: 500,
+    chartColor: "#8b5cf6", // Purple
+  }
 ];
 
-// Generate time-series data for the selected range
-export function generateLatencyChartData(range: TimeRange, appIds: string[]): LatencyDataPoint[] {
-  const points: LatencyDataPoint[] = [];
+export function generateLatencyChartData(range: TimeRange, selectedIds: string[]) {
+  const data: any[] = [];
+  const now = new Date(); // Membaca waktu saat ini secara dinamis
+  
+  let points = 7;
+  let intervalMs = 24 * 60 * 60 * 1000; // 1 Hari
+  
+  if (range === "24h") {
+    points = 24;
+    intervalMs = 60 * 60 * 1000; // 1 Jam
+  } else if (range === "7d") {
+    points = 7;
+    intervalMs = 24 * 60 * 60 * 1000; // 1 Hari
+  } else if (range === "30d") {
+    points = 15; 
+    intervalMs = 2 * 24 * 60 * 60 * 1000; // 2 Hari (agar grafik tidak terlalu padat)
+  }
 
-  let count = 24;
-  if (range === "7d") count = 7;
-  if (range === "30d") count = 15;
-
-  for (let i = count - 1; i >= 0; i--) {
-    let timestamp = "";
+  // Generate data mundur dari hari ini
+  for (let i = points; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * intervalMs);
+    
+    let timeLabel = "";
     if (range === "24h") {
-      const hour = (24 - i) % 24;
-      timestamp = `${String(hour).padStart(2, "0")}:00`;
-    } else if (range === "7d") {
-      const d = new Date(2026, 7, 29);
-      d.setDate(d.getDate() - i);
-      timestamp = `${d.getDate()} Agu`;
+      timeLabel = d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
     } else {
-      const d = new Date(2026, 7, 29);
-      d.setDate(d.getDate() - i * 2);
-      timestamp = `${d.getDate()} Agu`;
+      timeLabel = d.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
     }
 
-    const point: LatencyDataPoint = { timestamp };
+    const pointData: any = { timestamp: timeLabel };
 
-    appIds.forEach((id) => {
-      const app = mockLatencySummaries.find((a) => a.appId === id);
+    selectedIds.forEach((id) => {
+      const app = mockLatencySummaries.find(a => a.appId === id);
       if (app) {
-        // Create realistic variation
-        const jitter = Math.sin(i * 0.8) * (app.avgLatency * 0.15) + (Math.random() * 8 - 4);
-        point[id] = Math.max(20, Math.round(app.avgLatency + jitter));
+        // Membuat fluktuasi grafik yang terlihat natural
+        let val = app.avgLatency + (Math.random() * 40 - 20);
+        
+        if (app.status === "critical" && Math.random() > 0.7) val += 1500;
+        if (app.status === "high" && Math.random() > 0.8) val += 500;
+        
+        pointData[id] = Math.max(10, Math.round(val));
       }
     });
 
-    points.push(point);
+    data.push(pointData);
   }
 
-  return points;
-}
-
-/**
- * Fetch response time summaries and multi-line chart data.
- *
- * // TODO(backend): replace this function body with a fetch to `/api/metrics/latency`
- * Contract: see ResponseTimeFilter in lib/types/response-time.ts
- */
-export async function getResponseTimeData(filter: ResponseTimeFilter): Promise<{
-  summaries: AppLatencySummary[];
-  chartData: LatencyDataPoint[];
-}> {
-  await new Promise((r) => setTimeout(r, 60));
-
-  let filteredSummaries = [...mockLatencySummaries];
-
-  if (filter.opdCode) {
-    filteredSummaries = filteredSummaries.filter(
-      (s) => s.opdCode.toLowerCase() === filter.opdCode?.toLowerCase()
-    );
-  }
-
-  if (filter.searchQuery && filter.searchQuery.trim()) {
-    const q = filter.searchQuery.toLowerCase();
-    filteredSummaries = filteredSummaries.filter(
-      (s) => s.appName.toLowerCase().includes(q) || s.opdName.toLowerCase().includes(q)
-    );
-  }
-
-  const selectedIds = filter.selectedAppIds.length > 0
-    ? filter.selectedAppIds
-    : filteredSummaries.slice(0, 3).map((s) => s.appId);
-
-  const chartData = generateLatencyChartData(filter.range, selectedIds);
-
-  return {
-    summaries: filteredSummaries,
-    chartData,
-  };
+  return data;
 }
