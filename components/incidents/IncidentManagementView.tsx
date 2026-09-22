@@ -45,7 +45,6 @@ function IncidentDetailDrawer({ incident, onClose, onUpdateStatus }: IncidentDet
     } else {
       setScreenshot(null);
     }
-
   }, [incident]);
 
   useEffect(() => {
@@ -118,12 +117,10 @@ function IncidentDetailDrawer({ incident, onClose, onUpdateStatus }: IncidentDet
             </div>
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Waktu Mulai</span>
-              {/* whitespace-nowrap ditambahkan agar tidak turun ke bawah */}
               <span className="font-mono font-medium text-slate-700 mt-1 inline-block whitespace-nowrap">{incident.startedAt}</span>
             </div>
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Durasi Gangguan</span>
-              {/* whitespace-nowrap ditambahkan agar tidak turun ke bawah */}
               <span className="font-mono font-medium text-slate-700 mt-1 inline-block whitespace-nowrap">{incident.duration}</span>
             </div>
           </div>
@@ -255,7 +252,7 @@ export function IncidentManagementView() {
       
       const [resInc, resApps] = await Promise.all([
         fetch(`${API_URL}/api/incidents`, { headers: { "Authorization": `Bearer ${token}` } }),
-        fetch(`${API_URL}/api/applications`, { headers: { "Authorization": `Bearer ${token}` } })
+        fetch(`${API_URL}/api/applications`) // <-- PENYEBABNYA DI SINI: Header token dihapus agar tidak diblokir CORS
       ]);
       
       const jsonInc = await resInc.json();
