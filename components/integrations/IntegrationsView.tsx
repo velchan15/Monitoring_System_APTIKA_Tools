@@ -27,9 +27,10 @@ interface TestResult {
 interface IntegrationCardProps {
   integration: IntegrationItem;
   onSelect: (id: string) => void;
+  onSyncSuccess: (id: string, updatedCount: number) => void;
 }
 
-function IntegrationCard({ integration, onSelect }: IntegrationCardProps) {
+function IntegrationCard({ integration, onSelect, onSyncSuccess }: IntegrationCardProps) {
   const [isTesting, setIsTesting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
@@ -41,7 +42,6 @@ function IntegrationCard({ integration, onSelect }: IntegrationCardProps) {
   const handleTest = async () => {
     setIsTesting(true);
     setTestResult(null);
-    // TODO(backend): replace testIntegrationConnection with POST to `/api/integrations/:id/test`
     const result = await testIntegrationConnection(integration.id);
     setTestResult(result);
     setIsTesting(false);
@@ -51,9 +51,11 @@ function IntegrationCard({ integration, onSelect }: IntegrationCardProps) {
   const handleSync = async () => {
     setIsSyncing(true);
     setSyncResult(null);
-    // TODO(backend): replace triggerSync with POST to `/api/integrations/:id/sync`
     const result = await triggerSync(integration.id);
-    if (result.success) setSyncResult({ count: result.updatedCount });
+    if (result.success) {
+      setSyncResult({ count: result.updatedCount });
+      onSyncSuccess(integration.id, result.updatedCount);
+    }
     setIsSyncing(false);
     setTimeout(() => setSyncResult(null), 5000);
   };
@@ -75,7 +77,7 @@ function IntegrationCard({ integration, onSelect }: IntegrationCardProps) {
         <button
           type="button"
           onClick={() => onSelect(integration.id)}
-          className="text-ink/30 hover:text-ink/60 transition mt-1 flex-shrink-0"
+          className="text-ink/30 hover:text-ink/60 transition mt-1 flex-shrink-0 cursor-pointer"
           aria-label="Pengaturan integrasi"
         >
           <Settings className="h-4 w-4" />
@@ -111,7 +113,7 @@ function IntegrationCard({ integration, onSelect }: IntegrationCardProps) {
           type="button"
           onClick={handleTest}
           disabled={isTesting}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-canvas disabled:opacity-60 transition"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-ink/70 hover:bg-canvas disabled:opacity-60 transition cursor-pointer"
         >
           {isTesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
           {isTesting ? "Menguji..." : "Uji Koneksi"}
@@ -122,7 +124,7 @@ function IntegrationCard({ integration, onSelect }: IntegrationCardProps) {
             type="button"
             onClick={handleSync}
             disabled={isSyncing || integration.status === "disconnected"}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-brand/30 bg-brand-soft px-3 py-1.5 text-xs font-semibold text-brand hover:bg-brand/15 disabled:opacity-60 transition"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-brand/30 bg-brand-soft px-3 py-1.5 text-xs font-semibold text-brand hover:bg-brand/15 disabled:opacity-60 transition cursor-pointer"
           >
             {isSyncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCcw className="h-3 w-3" />}
             {isSyncing ? "Sinkronisasi..." : "Sinkron Sekarang"}
@@ -137,9 +139,10 @@ interface ConfigPanelProps {
   integration: IntegrationItem;
   onClose: () => void;
   onDisconnect: (id: string) => void;
+  onSave: (id: string) => void;
 }
 
-function ConfigPanel({ integration, onClose, onDisconnect }: ConfigPanelProps) {
+function ConfigPanel({ integration, onClose, onDisconnect, onSave }: ConfigPanelProps) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
@@ -153,7 +156,7 @@ function ConfigPanel({ integration, onClose, onDisconnect }: ConfigPanelProps) {
             <h3 className="text-sm font-bold text-ink">{integration.name}</h3>
             <p className="text-[11px] text-ink/50">Konfigurasi Integrasi</p>
           </div>
-          <button type="button" onClick={onClose} className="p-1.5 text-ink/40 hover:text-ink rounded-lg" aria-label="Tutup">
+          <button type="button" onClick={onClose} className="p-1.5 text-ink/40 hover:text-ink rounded-lg cursor-pointer" aria-label="Tutup">
             <XCircle className="h-4 w-4" />
           </button>
         </div>
@@ -175,16 +178,16 @@ function ConfigPanel({ integration, onClose, onDisconnect }: ConfigPanelProps) {
             <button
               type="button"
               onClick={() => { onDisconnect(integration.id); onClose(); }}
-              className="text-xs font-semibold text-red-600 hover:underline"
+              className="text-xs font-semibold text-red-600 hover:underline cursor-pointer"
             >
               {integration.status !== "disconnected" ? "Putuskan Koneksi" : "Hapus Konfigurasi"}
             </button>
             <div className="flex gap-2">
-              <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-ink hover:bg-canvas">Batal</button>
+              <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg border border-border text-xs font-semibold text-ink hover:bg-canvas cursor-pointer">Batal</button>
               <button
                 type="button"
-                onClick={() => { alert("TODO(backend): simpan konfigurasi integrasi ke /api/integrations/:id"); onClose(); }}
-                className="px-4 py-2 rounded-lg bg-brand text-white text-xs font-semibold hover:bg-brand/90 transition"
+                onClick={() => { onSave(integration.id); onClose(); }}
+                className="px-4 py-2 rounded-lg bg-brand text-white text-xs font-semibold hover:bg-brand/90 transition cursor-pointer"
               >
                 Simpan
               </button>
@@ -203,9 +206,17 @@ export function IntegrationsView() {
   const selectedIntegration = integrations.find((i) => i.id === selectedId) || null;
 
   const handleDisconnect = async (id: string) => {
-    // TODO(backend): replace with PATCH /api/integrations/:id { status: "disconnected" }
     await updateIntegrationStatus(id, "disconnected");
-    setIntegrations([...mockIntegrations]);
+    setIntegrations(prev => prev.map(item => item.id === id ? { ...item, status: "disconnected" } : item));
+  };
+
+  const handleSyncSuccess = (id: string, updatedCount: number) => {
+    const nowStr = "Baru saja (" + new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB)";
+    setIntegrations(prev => prev.map(item => item.id === id ? { ...item, status: "connected", lastSyncAt: nowStr } : item));
+  };
+
+  const handleSaveConfig = (id: string) => {
+    setIntegrations(prev => prev.map(item => item.id === id ? { ...item, status: "connected" } : item));
   };
 
   const connectedCount = integrations.filter((i) => i.status === "connected").length;
@@ -235,6 +246,7 @@ export function IntegrationsView() {
             key={integration.id}
             integration={integration}
             onSelect={(id) => setSelectedId(id)}
+            onSyncSuccess={handleSyncSuccess}
           />
         ))}
       </div>
@@ -244,6 +256,7 @@ export function IntegrationsView() {
           integration={selectedIntegration}
           onClose={() => setSelectedId(null)}
           onDisconnect={handleDisconnect}
+          onSave={handleSaveConfig}
         />
       )}
     </div>
