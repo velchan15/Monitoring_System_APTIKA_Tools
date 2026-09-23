@@ -40,12 +40,40 @@ export function ExportReportView() {
   const [opdCode, setOpdCode] = useState("all");
   const [isGenerating, setIsGenerating] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ ok: boolean; msg: string } | null>(null);
-  const [history, setHistory] = useState<any[]>([]);
   
+  // Inisialisasi history dari localStorage agar tidak hilang saat refresh
+  const [history, setHistory] = useState<any[]>([]);
   const [opdOptions, setOpdOptions] = useState<{code: string, name: string}[]>([]);
 
   useEffect(() => {
-    // Ambil data OPD asli dari backend
+    // 1. Muat riwayat tersimpan dari localStorage
+    const savedHistory = localStorage.getItem("aptika_export_history");
+    if (savedHistory) {
+      try {
+        setHistory(JSON.parse(savedHistory));
+      } catch (e) {
+        console.error("Gagal membaca storage:", e);
+      }
+    } else {
+      // Default awal jika storage kosong
+      const now = new Date();
+      const initialHistory = [
+        {
+          id: "exp-1",
+          fileName: "Laporan_Uptime_Jabar_Sep2026.xlsx",
+          reportTypeLabel: "Laporan Uptime Layanan",
+          dateRange: "01 Sep 2026 - 30 Sep 2026",
+          opdLabel: "Semua OPD (Agregat)",
+          createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) + " WIB",
+          fileSizeFormatted: "1.2 MB",
+          status: "completed",
+          format: "xlsx",
+        }
+      ];
+      setHistory(initialHistory);
+    }
+
+    // 2. Ambil data OPD asli dari backend
     fetch(`${API_URL}/api/applications`)
       .then(res => res.json())
       .then(json => {
@@ -63,31 +91,20 @@ export function ExportReportView() {
         setOpdOptions(opdList);
       })
       .catch(err => console.error("Gagal fetch OPD:", err));
-
-    // Riwayat awal saat halaman dimuat
-    const now = new Date();
-    const initialHistory = [
-      {
-        id: "exp-1",
-        fileName: "Laporan_Uptime_Jabar_Sep2026.xlsx",
-        reportTypeLabel: "Laporan Uptime Layanan",
-        dateRange: "01 Sep 2026 - 30 Sep 2026",
-        opdLabel: "Semua OPD (Agregat)",
-        createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) + " WIB",
-        fileSizeFormatted: "1.2 MB",
-        status: "completed",
-        format: "xlsx",
-      }
-    ];
-    setHistory(initialHistory);
   }, []);
+
+  // Simpan ke localStorage setiap kali history berubah
+  useEffect(() => {
+    if (history.length > 0) {
+      localStorage.setItem("aptika_export_history", JSON.stringify(history));
+    }
+  }, [history]);
 
   const showToast = (ok: boolean, msg: string) => {
     setToastMsg({ ok, msg });
     setTimeout(() => setToastMsg(null), 4000);
   };
 
-  // Fungsi membuat laporan baru berdasarkan input form
   const handleGenerate = () => {
     setIsGenerating(true);
     setToastMsg(null);
@@ -111,16 +128,13 @@ export function ExportReportView() {
         format: format,
       };
 
-      // Tambahkan ke baris paling atas tabel riwayat
       setHistory([newReport, ...history]);
     }, 1500);
   };
 
-  // Fungsi pengunduhan yang sepenuhnya DINAMIS berdasarkan data baris laporan yang diklik
   const handleDownload = (item: any) => {
     let extension = item.format || "csv";
 
-    // Jika format PDF, buka print preview browser dengan data spesifik item tersebut
     if (extension === "pdf") {
       const printWindow = window.open('', '_blank');
       if (printWindow) {
@@ -176,7 +190,6 @@ export function ExportReportView() {
       return;
     }
 
-    // Untuk Excel (.xls) atau CSV (.csv) secara dinamis
     let fileContent = "";
     let mimeType = "text/csv;charset=utf-8;";
     let downloadExtension = "csv";
