@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   Download, FileText, FileSpreadsheet, File, Clock, CheckCircle2, XCircle,
-  Loader2
+  Loader2, Trash2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { API_URL } from "@/lib/api";
@@ -41,7 +41,6 @@ export function ExportReportView() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ ok: boolean; msg: string } | null>(null);
   
-  // Inisialisasi history dari localStorage agar tidak hilang saat refresh
   const [history, setHistory] = useState<any[]>([]);
   const [opdOptions, setOpdOptions] = useState<{code: string, name: string}[]>([]);
 
@@ -55,7 +54,6 @@ export function ExportReportView() {
         console.error("Gagal membaca storage:", e);
       }
     } else {
-      // Default awal jika storage kosong
       const now = new Date();
       const initialHistory = [
         {
@@ -95,9 +93,7 @@ export function ExportReportView() {
 
   // Simpan ke localStorage setiap kali history berubah
   useEffect(() => {
-    if (history.length > 0) {
-      localStorage.setItem("aptika_export_history", JSON.stringify(history));
-    }
+    localStorage.setItem("aptika_export_history", JSON.stringify(history));
   }, [history]);
 
   const showToast = (ok: boolean, msg: string) => {
@@ -130,6 +126,13 @@ export function ExportReportView() {
 
       setHistory([newReport, ...history]);
     }, 1500);
+  };
+
+  // Fungsi untuk menghapus item riwayat berdasarkan ID
+  const handleDelete = (id: string) => {
+    const filteredHistory = history.filter(item => item.id !== id);
+    setHistory(filteredHistory);
+    showToast(true, "Riwayat laporan berhasil dihapus.");
   };
 
   const handleDownload = (item: any) => {
@@ -374,43 +377,60 @@ export function ExportReportView() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
-              {history.map((item) => {
-                const FIcon = FORMAT_ICONS[item.format] || File;
-                const stCfg = STATUS_CONFIG[item.status];
-                const StIcon = stCfg.icon;
-                return (
-                  <tr key={item.id} className="hover:bg-canvas/40 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <FIcon className="h-4 w-4 text-ink/40 flex-shrink-0" />
-                        <span className="font-mono text-[10px] text-ink/80 line-clamp-1 max-w-[200px]">{item.fileName}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-ink/70">{item.reportTypeLabel}</td>
-                    <td className="px-4 py-3 font-mono text-[10px] text-ink/60 whitespace-nowrap">{item.dateRange}</td>
-                    <td className="px-4 py-3 text-ink/60">{item.opdLabel}</td>
-                    <td className="px-4 py-3 font-mono text-[10px] text-ink/60 whitespace-nowrap">{item.createdAt}</td>
-                    <td className="px-4 py-3 font-mono text-ink/50">{item.fileSizeFormatted}</td>
-                    <td className="px-4 py-3">
-                      <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold", stCfg.class)}>
-                        <StIcon className={cn("h-3.5 w-3.5", item.status === "processing" ? "animate-spin" : "")} />
-                        {stCfg.label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {item.status === "completed" && (
-                        <button
-                          type="button"
-                          onClick={() => handleDownload(item)}
-                          className="inline-flex items-center gap-1 text-brand hover:underline text-[11px] font-semibold"
-                        >
-                          <Download className="h-3 w-3" /> Unduh
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {history.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center text-ink/40 text-xs">
+                    Belum ada riwayat laporan tersimpan.
+                  </td>
+                </tr>
+              ) : (
+                history.map((item) => {
+                  const FIcon = FORMAT_ICONS[item.format] || File;
+                  const stCfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.completed;
+                  const StIcon = stCfg.icon;
+                  return (
+                    <tr key={item.id} className="hover:bg-canvas/40 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <FIcon className="h-4 w-4 text-ink/40 flex-shrink-0" />
+                          <span className="font-mono text-[10px] text-ink/80 line-clamp-1 max-w-[200px]">{item.fileName}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-ink/70">{item.reportTypeLabel}</td>
+                      <td className="px-4 py-3 font-mono text-[10px] text-ink/60 whitespace-nowrap">{item.dateRange}</td>
+                      <td className="px-4 py-3 text-ink/60">{item.opdLabel}</td>
+                      <td className="px-4 py-3 font-mono text-[10px] text-ink/60 whitespace-nowrap">{item.createdAt}</td>
+                      <td className="px-4 py-3 font-mono text-ink/50">{item.fileSizeFormatted}</td>
+                      <td className="px-4 py-3">
+                        <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold", stCfg.class)}>
+                          <StIcon className={cn("h-3.5 w-3.5", item.status === "processing" ? "animate-spin" : "")} />
+                          {stCfg.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          {item.status === "completed" && (
+                            <button
+                              type="button"
+                              onClick={() => handleDownload(item)}
+                              className="inline-flex items-center gap-1 text-brand hover:underline text-[11px] font-semibold"
+                            >
+                              <Download className="h-3 w-3" /> Unduh
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(item.id)}
+                            className="inline-flex items-center gap-1 text-red-600 hover:underline text-[11px] font-semibold"
+                          >
+                            <Trash2 className="h-3 w-3" /> Hapus
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
