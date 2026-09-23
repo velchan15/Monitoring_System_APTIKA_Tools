@@ -130,41 +130,104 @@ export function ExportReportView() {
     }, 1500);
   };
 
-  // Fungsi pengunduhan multi-format secara instan dari browser
+  // Fungsi pengunduhan aman untuk Excel, PDF, dan CSV tanpa error
   const handleDownload = (item: any) => {
-    let fileContent = "";
-    let mimeType = "text/plain;charset=utf-8;";
     let extension = item.format || "csv";
 
-    if (extension === "csv") {
-      fileContent = "Nama Aplikasi,Perangkat Daerah,Target SLA,Status Kepatuhan\n" +
+    // Jika format PDF, buka print preview browser agar bisa langsung "Save as PDF" secara native
+    if (extension === "pdf") {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>${item.fileName}</title>
+              <style>
+                body { font-family: Arial, sans-serif; padding: 25px; color: #1e293b; }
+                h2 { color: #0284c7; margin-bottom: 5px; }
+                .header-meta { font-size: 12px; color: #64748b; margin-bottom: 20px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; font-size: 12px; }
+                th { background-color: #f1f5f9; color: #334155; }
+                .footer { margin-top: 30px; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; paddingTop: 10px; }
+              </style>
+            </head>
+            <body>
+              <h2>PEMERINTAH PROVINSI JAWA BARAT</h2>
+              <p style="margin: 0; font-weight: bold; font-size: 13px;">Dinas Komunikasi dan Informatika (APTIKA)</p>
+              <div class="header-meta">
+                <p>Jenis Laporan: ${item.reportTypeLabel} | Periode: ${item.dateRange}</p>
+                <p>Perangkat Daerah: ${item.opdLabel} | Dibuat: ${item.createdAt}</p>
+              </div>
+              <hr style="border: 0; border-top: 1px solid #cbd5e1;" />
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nama Aplikasi</th>
+                    <th>Perangkat Daerah</th>
+                    <th>Target SLA</th>
+                    <th>Status Kepatuhan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>Portal Resmi Jabarprov</td><td>DISKOMINFO</td><td>99.5%</td><td>Sesuai SLA</td></tr>
+                  <tr><td>SIMPUS Jabar Online</td><td>DINKES</td><td>99.5%</td><td>Melewati SLA</td></tr>
+                  <tr><td>Sistem Pajak Kendaraan</td><td>BAPENDA</td><td>99.5%</td><td>Mendekati Batas</td></tr>
+                  <tr><td>Aplikasi Layanan Publik Desa</td><td>DPMD</td><td>99.5%</td><td>Melewati SLA</td></tr>
+                </tbody>
+              </table>
+              <div class="footer">
+                Dokumen resmi digenerate secara otomatis melalui Sistem Monitoring APTIKA Jabarprov.
+              </div>
+              <script>
+                window.onload = function() { window.print(); };
+              </script>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      }
+      return;
+    }
+
+    // Untuk Excel (.xlsx) dan CSV (.csv)
+    let fileContent = "";
+    let mimeType = "text/csv;charset=utf-8;";
+    let downloadExtension = "csv";
+
+    if (extension === "xlsx") {
+      // Format HTML Spreadsheet (.xls) agar Excel membuka tabel langsung dengan rapi tanpa error korup
+      fileContent = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head><meta charset="utf-8"/></head>
+        <body>
+          <h3>REKAP LAPORAN SISTEM MONITORING APTIKA</h3>
+          <p><b>Jenis Laporan:</b> ${item.reportTypeLabel}</p>
+          <p><b>Periode:</b> ${item.dateRange} | <b>OPD:</b> ${item.opdLabel}</p>
+          <table border="1">
+            <tr style="background-color: #0284c7; color: #ffffff;">
+              <th>Nama Aplikasi</th><th>Perangkat Daerah</th><th>Target SLA</th><th>Status Kepatuhan</th>
+            </tr>
+            <tr><td>Portal Resmi Jabarprov</td><td>DISKOMINFO</td><td>99.5%</td><td>Sesuai SLA</td></tr>
+            <tr><td>SIMPUS Jabar Online</td><td>DINKES</td><td>99.5%</td><td>Melewati SLA</td></tr>
+            <tr><td>Sistem Pajak Kendaraan</td><td>BAPENDA</td><td>99.5%</td><td>Mendekati Batas</td></tr>
+          </table>
+        </body>
+        </html>
+      `;
+      mimeType = "application/vnd.ms-excel;charset=utf-8;";
+      downloadExtension = "xls"; // Ekstensi .xls dibuka native oleh Microsoft Excel tanpa peringatan
+    } else {
+      fileContent = "REKAP LAPORAN SISTEM MONITORING APTIKA\n" +
+                    `Jenis Laporan: ${item.reportTypeLabel}\n` +
+                    `Periode: ${item.dateRange}\n` +
+                    `Perangkat Daerah: ${item.opdLabel}\n\n` +
+                    "Nama Aplikasi,Perangkat Daerah,Target SLA,Status Kepatuhan\n" +
                     "Portal Resmi Jabarprov,DISKOMINFO,99.5%,Sesuai SLA\n" +
                     "SIMPUS Jabar Online,DINKES,99.5%,Melewati SLA\n" +
                     "Sistem Pajak Kendaraan,BAPENDA,99.5%,Mendekati Batas\n";
       mimeType = "text/csv;charset=utf-8;";
-    } else if (extension === "xlsx") {
-      // Format koma terstruktur agar bisa langsung dibaca Excel sebagai tabel
-      fileContent = "LAPORAN RESMI PEMPROV JAWA BARAT\t\t\t\n" +
-                    "Nama Aplikasi\tPerangkat Daerah\tTarget SLA\tStatus Kepatuhan\n" +
-                    "Portal Resmi Jabarprov\tDISKOMINFO\t99.5%\tSesuai SLA\n" +
-                    "SIMPUS Jabar Online\tDINKES\t99.5%\tMelewati SLA\n" +
-                    "Sistem Pajak Kendaraan\tBAPENDA\t99.5%\tMendekati Batas\n";
-      mimeType = "application/vnd.ms-excel;charset=utf-8;";
-    } else if (extension === "pdf") {
-      // Simulasi dokumen teks format laporan PDF resmi
-      fileContent = "========================================\n" +
-                    "   PEMERINTAH PROVINSI JAWA BARAT\n" +
-                    "     DINAS KOMUNIKASI DAN INFORMATIKA\n" +
-                    "========================================\n\n" +
-                    `Jenis Laporan : ${item.reportTypeLabel}\n` +
-                    `Periode       : ${item.dateRange}\n` +
-                    `Perangkat     : ${item.opdLabel}\n\n` +
-                    "Daftar Ringkasan Layanan Terpantau:\n" +
-                    "- Portal Resmi Jabarprov (Sesuai SLA)\n" +
-                    "- SIMPUS Jabar Online (Melewati SLA)\n" +
-                    "- Sistem Pajak Kendaraan (Mendekati Batas)\n\n" +
-                    "Status Dokumen: VALID (Generated by APTIKA System)";
-      mimeType = "application/pdf;charset=utf-8;";
+      downloadExtension = "csv";
     }
 
     const blob = new Blob([fileContent], { type: mimeType });
@@ -172,9 +235,8 @@ export function ExportReportView() {
     const link = document.createElement("a");
     link.href = url;
     
-    // Sesuaikan ekstensi file berdasarkan pilihan formatnya (.pdf, .xlsx, atau .csv)
     const baseName = item.fileName.replace(/\.[^/.]+$/, "");
-    link.setAttribute("download", `${baseName}.${extension}`);
+    link.setAttribute("download", `${baseName}.${downloadExtension}`);
     
     document.body.appendChild(link);
     link.click();
@@ -325,7 +387,7 @@ export function ExportReportView() {
                     <td className="px-4 py-3 font-mono text-[10px] text-ink/60 whitespace-nowrap">{item.dateRange}</td>
                     <td className="px-4 py-3 text-ink/60">{item.opdLabel}</td>
                     <td className="px-4 py-3 font-mono text-[10px] text-ink/60 whitespace-nowrap">{item.createdAt}</td>
-                    <td className="px-4 py-3 font-mono text-[10px] text-ink/50">{item.fileSizeFormatted}</td>
+                    <td className="px-4 py-3 font-mono text-ink/50">{item.fileSizeFormatted}</td>
                     <td className="px-4 py-3">
                       <span className={cn("inline-flex items-center gap-1 text-[11px] font-semibold", stCfg.class)}>
                         <StIcon className={cn("h-3.5 w-3.5", item.status === "processing" ? "animate-spin" : "")} />
