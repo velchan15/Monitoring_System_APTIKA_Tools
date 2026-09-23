@@ -169,8 +169,11 @@ export function UptimeReportView() {
 
       {/* Table Card */}
       <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
-        <div className="flex flex-col gap-3 p-4 border-b border-border">
-          <div className="flex flex-wrap items-center gap-2">
+        
+        {/* BAGIAN HEADER TABEL YANG DILURUSKAN */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-4 border-b border-border">
+          
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto flex-1">
             <div className="relative flex-1 min-w-[180px] max-w-xs">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-ink/40" />
               <input
@@ -193,19 +196,24 @@ export function UptimeReportView() {
             </select>
           </div>
 
-          <div className="flex rounded-lg border border-border bg-canvas p-0.5 w-fit flex-wrap gap-0.5">
+          <div className="flex rounded-lg border border-border bg-canvas p-0.5 w-fit">
             {SLA_TABS.map((tab) => (
               <button
                 key={tab.k}
                 type="button"
                 onClick={() => setSlaFilter(tab.k)}
-                className={cn("rounded-md px-3 py-1 text-xs font-medium transition-colors", slaFilter === tab.k ? "bg-white text-brand shadow-sm" : "text-ink/50 hover:text-ink")}
+                className={cn(
+                  "rounded-md px-3 py-1 text-xs font-medium transition-colors whitespace-nowrap", 
+                  slaFilter === tab.k ? "bg-white text-brand shadow-sm" : "text-ink/50 hover:text-ink"
+                )}
               >
                 {tab.l}
               </button>
             ))}
           </div>
+          
         </div>
+        {/* AKHIR BAGIAN HEADER TABEL YANG DILURUSKAN */}
 
         {isLoading ? (
            <div className="flex flex-col items-center justify-center py-12 gap-3 text-ink/50">
