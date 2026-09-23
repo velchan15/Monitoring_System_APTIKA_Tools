@@ -51,7 +51,7 @@ function AuditDetailModal({ log, onClose }: DetailModalProps) {
             <h3 className="text-sm font-bold text-ink">{log.actionTitle}</h3>
             <p className="text-[11px] font-mono text-ink/50 mt-0.5">{log.timestamp} · IP: {log.ipAddress || "—"}</p>
           </div>
-          <button type="button" onClick={onClose} className="p-1.5 text-ink/40 hover:text-ink rounded-lg" aria-label="Tutup">
+          <button type="button" onClick={onClose} className="p-1.5 text-ink/40 hover:text-ink rounded-lg cursor-pointer" aria-label="Tutup">
             <Search className="h-4 w-4 rotate-45 opacity-60" />
           </button>
         </div>
@@ -103,7 +103,7 @@ function AuditDetailModal({ log, onClose }: DetailModalProps) {
           )}
 
           <div className="text-right">
-            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-ink text-white text-xs font-semibold hover:bg-ink/90 transition">
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-ink text-white text-xs font-semibold hover:bg-ink/90 transition cursor-pointer">
               Tutup
             </button>
           </div>
@@ -227,7 +227,7 @@ export function AuditTrailView() {
                       <button
                         type="button"
                         onClick={() => setSelectedLog(log)}
-                        className="inline-flex items-center gap-1 text-brand hover:underline text-[11px] font-semibold"
+                        className="inline-flex items-center gap-1 text-brand hover:underline text-[11px] font-semibold cursor-pointer"
                       >
                         Lihat <ChevronRight className="h-3 w-3" />
                       </button>
