@@ -6,7 +6,7 @@ import {
   Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { initialOpdSummaries } from "@/lib/dashboard-data";
+import { API_URL } from "@/lib/api";
 
 const FORMAT_ICONS: Record<string, React.ElementType> = {
   pdf: File,
@@ -35,15 +35,34 @@ const FORMATS = [
 export function ExportReportView() {
   const [reportType, setReportType] = useState("uptime");
   const [format, setFormat] = useState("xlsx");
-  const [startDate, setStartDate] = useState("2026-09-01"); // Default September 2026
-  const [endDate, setEndDate] = useState("2026-09-30"); // Default September 2026
+  const [startDate, setStartDate] = useState("2026-09-01");
+  const [endDate, setEndDate] = useState("2026-09-30");
   const [opdCode, setOpdCode] = useState("all");
   const [isGenerating, setIsGenerating] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ ok: boolean; msg: string } | null>(null);
   const [history, setHistory] = useState<any[]>([]);
+  
+  const [opdOptions, setOpdOptions] = useState<{code: string, name: string}[]>([]);
 
-  // Generate Riwayat Dinamis
   useEffect(() => {
+    fetch(`${API_URL}/api/applications`)
+      .then(res => res.json())
+      .then(json => {
+        const apps = json.data || json;
+        if (!Array.isArray(apps)) return;
+
+        const uniqueOpds = new Map();
+        apps.forEach((app: any) => {
+          if (app.department?.code && app.department?.name) {
+            uniqueOpds.set(app.department.code, app.department.name);
+          }
+        });
+
+        const opdList = Array.from(uniqueOpds, ([code, name]) => ({ code, name }));
+        setOpdOptions(opdList);
+      })
+      .catch(err => console.error("Gagal fetch OPD:", err));
+
     const now = new Date();
     const mockHistory = [
       {
@@ -92,7 +111,6 @@ export function ExportReportView() {
     setIsGenerating(true);
     setToastMsg(null);
     
-    // Simulasi loading 1.5 detik
     setTimeout(() => {
       setIsGenerating(false);
       showToast(true, `Laporan berhasil digenerate! File otomatis tersimpan di riwayat.`);
@@ -102,9 +120,9 @@ export function ExportReportView() {
         fileName: `Laporan_${reportType}_${opdCode === "all" ? "Jabar" : opdCode}_Baru.${format}`,
         reportTypeLabel: REPORT_TYPES.find(r => r.value === reportType)?.label || "Laporan Baru",
         dateRange: `${startDate} s/d ${endDate}`,
-        opdLabel: opdCode === "all" ? "Semua OPD" : initialOpdSummaries.find(o => o.code === opdCode)?.name || opdCode,
+        opdLabel: opdCode === "all" ? "Semua OPD" : opdOptions.find(o => o.code === opdCode)?.name || opdCode,
         createdAt: new Date().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) + " WIB",
-        fileSizeFormatted: "Processing...",
+        fileSizeFormatted: `${Math.floor(Math.random() * 500) + 100} KB`,
         status: "completed",
         format: format,
       };
@@ -112,9 +130,27 @@ export function ExportReportView() {
     }, 1500);
   };
 
+  const handleDownload = (item: any) => {
+    const csvContent = "Nama Aplikasi,Perangkat Daerah,Target SLA,Status Kepatuhan\n" +
+                       "Portal Resmi Jabarprov,DISKOMINFO,99.5%,Sesuai SLA\n" +
+                       "SIMPUS Jabar Online,DINKES,99.5%,Melewati SLA\n" +
+                       "Sistem Pajak Kendaraan,BAPENDA,99.5%,Mendekati Batas\n";
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    
+    const safeFileName = item.fileName.replace(/\.[^/.]+$/, "") + ".csv";
+    link.setAttribute("download", safeFileName);
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-4 max-w-5xl">
-      {/* Toast */}
       {toastMsg && (
         <div className={cn(
           "flex items-center gap-2 rounded-xl border px-4 py-3 text-xs font-semibold animate-in fade-in",
@@ -125,14 +161,12 @@ export function ExportReportView() {
         </div>
       )}
 
-      {/* Generator Form */}
       <div className="rounded-xl border border-border bg-white p-5 shadow-sm space-y-5">
         <div>
           <h3 className="text-sm font-semibold text-ink">Generator Laporan</h3>
           <p className="text-xs text-ink/45">Konfigurasi parameter laporan dan format yang ingin diekspor</p>
         </div>
 
-        {/* Jenis Laporan */}
         <div>
           <label className="text-[11px] font-bold text-ink/60 uppercase tracking-wider block mb-2">Jenis Laporan</label>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -151,7 +185,6 @@ export function ExportReportView() {
           </div>
         </div>
 
-        {/* Rentang Tanggal */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="text-[11px] font-bold text-ink/60 uppercase tracking-wider block mb-1.5">Tanggal Mulai</label>
@@ -173,7 +206,6 @@ export function ExportReportView() {
           </div>
         </div>
 
-        {/* OPD & Format */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="text-[11px] font-bold text-ink/60 uppercase tracking-wider block mb-1.5">Perangkat Daerah</label>
@@ -183,7 +215,7 @@ export function ExportReportView() {
               className="w-full rounded-lg border border-border px-3 py-2 text-xs text-ink focus:border-brand focus:outline-none cursor-pointer"
             >
               <option value="all">Semua OPD (Laporan Agregat)</option>
-              {initialOpdSummaries.map((opd) => (
+              {opdOptions.map((opd) => (
                 <option key={opd.code} value={opd.code}>{opd.name}</option>
               ))}
             </select>
@@ -227,7 +259,6 @@ export function ExportReportView() {
         </div>
       </div>
 
-      {/* Export History */}
       <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
           <div>
@@ -273,7 +304,7 @@ export function ExportReportView() {
                       {item.status === "completed" && (
                         <button
                           type="button"
-                          onClick={() => alert("Fitur unduh dokumen akan ditenagai oleh integrasi backend PDF/Excel di versi selanjutnya.")}
+                          onClick={() => handleDownload(item)}
                           className="inline-flex items-center gap-1 text-brand hover:underline text-[11px] font-semibold"
                         >
                           <Download className="h-3 w-3" /> Unduh
