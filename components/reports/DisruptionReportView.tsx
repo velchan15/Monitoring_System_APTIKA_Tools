@@ -213,13 +213,22 @@ export function DisruptionReportView() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs min-w-[800px]">
+              
+              {/* BAGIAN HEADER TABEL YANG DIRAPIKAN */}
               <thead>
                 <tr className="border-b border-border bg-canvas/60">
-                  {["Tiket / Aplikasi", "OPD", "Kategori Penyebab", "Dampak", "Waktu Mulai", "Diselesaikan", "Durasi", "Root Cause"].map((h) => (
-                    <th key={h} className="px-4 py-3 font-semibold uppercase tracking-wider text-[10px] text-ink/50">{h}</th>
-                  ))}
+                  <th className="px-4 py-3 font-semibold uppercase tracking-wider text-[10px] text-ink/50 w-64">Tiket / Aplikasi</th>
+                  <th className="px-4 py-3 font-semibold uppercase tracking-wider text-[10px] text-ink/50 w-48">OPD</th>
+                  <th className="px-4 py-3 font-semibold uppercase tracking-wider text-[10px] text-ink/50 w-40">Kategori Penyebab</th>
+                  <th className="px-4 py-3 font-semibold uppercase tracking-wider text-[10px] text-ink/50 w-24">Dampak</th>
+                  <th className="px-4 py-3 font-semibold uppercase tracking-wider text-[10px] text-ink/50 w-32">Waktu Mulai</th>
+                  <th className="px-4 py-3 font-semibold uppercase tracking-wider text-[10px] text-ink/50 w-32">Diselesaikan</th>
+                  <th className="px-4 py-3 font-semibold uppercase tracking-wider text-[10px] text-ink/50 w-24">Durasi</th>
+                  <th className="px-4 py-3 font-semibold uppercase tracking-wider text-[10px] text-ink/50 min-w-[200px]">Root Cause</th>
                 </tr>
               </thead>
+              {/* AKHIR BAGIAN HEADER TABEL */}
+
               <tbody className="divide-y divide-border/60">
                 {filteredHistory.map((item) => {
                   const impCfg = IMPACT_CONFIG[item.impactLevel as keyof typeof IMPACT_CONFIG];
