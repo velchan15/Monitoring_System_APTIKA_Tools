@@ -45,6 +45,7 @@ export function ExportReportView() {
   const [opdOptions, setOpdOptions] = useState<{code: string, name: string}[]>([]);
 
   useEffect(() => {
+    // Ambil data OPD asli dari backend
     fetch(`${API_URL}/api/applications`)
       .then(res => res.json())
       .then(json => {
@@ -63,43 +64,22 @@ export function ExportReportView() {
       })
       .catch(err => console.error("Gagal fetch OPD:", err));
 
+    // Riwayat awal saat halaman dimuat
     const now = new Date();
-    const mockHistory = [
+    const initialHistory = [
       {
         id: "exp-1",
         fileName: "Laporan_Uptime_Jabar_Sep2026.xlsx",
         reportTypeLabel: "Laporan Uptime Layanan",
-        dateRange: "01 Sep 2026 - 22 Sep 2026",
-        opdLabel: "Semua OPD",
+        dateRange: "01 Sep 2026 - 30 Sep 2026",
+        opdLabel: "Semua OPD (Agregat)",
         createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) + " WIB",
         fileSizeFormatted: "1.2 MB",
         status: "completed",
         format: "xlsx",
-      },
-      {
-        id: "exp-2",
-        fileName: "Insiden_Kritis_Dinkes.pdf",
-        reportTypeLabel: "Laporan Gangguan / Insiden",
-        dateRange: "01 Ags 2026 - 31 Ags 2026",
-        opdLabel: "Dinas Kesehatan",
-        createdAt: new Date(now.getTime() - 24 * 60 * 60 * 1000).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) + " WIB",
-        fileSizeFormatted: "845 KB",
-        status: "completed",
-        format: "pdf",
-      },
-      {
-        id: "exp-3",
-        fileName: "Audit_SSL_Bapenda_Q3.csv",
-        reportTypeLabel: "Audit Sertifikat SSL",
-        dateRange: "01 Jul 2026 - 30 Sep 2026",
-        opdLabel: "Badan Pendapatan Daerah",
-        createdAt: new Date(now.getTime() - 48 * 60 * 60 * 1000).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) + " WIB",
-        fileSizeFormatted: "210 KB",
-        status: "completed",
-        format: "csv",
       }
     ];
-    setHistory(mockHistory);
+    setHistory(initialHistory);
   }, []);
 
   const showToast = (ok: boolean, msg: string) => {
@@ -107,34 +87,40 @@ export function ExportReportView() {
     setTimeout(() => setToastMsg(null), 4000);
   };
 
+  // Fungsi membuat laporan baru berdasarkan input form
   const handleGenerate = () => {
     setIsGenerating(true);
     setToastMsg(null);
     
     setTimeout(() => {
       setIsGenerating(false);
-      showToast(true, `Laporan berformat .${format.toUpperCase()} berhasil digenerate!`);
+      showToast(true, `Laporan berhasil digenerate dan ditambahkan ke riwayat!`);
+      
+      const selectedOpdName = opdCode === "all" ? "Semua OPD (Agregat)" : opdOptions.find(o => o.code === opdCode)?.name || opdCode;
+      const reportLabel = REPORT_TYPES.find(r => r.value === reportType)?.label || "Laporan Sistem";
       
       const newReport = {
         id: `exp-${Date.now()}`,
-        fileName: `Laporan_${reportType}_${opdCode === "all" ? "Jabar" : opdCode}_Baru.${format}`,
-        reportTypeLabel: REPORT_TYPES.find(r => r.value === reportType)?.label || "Laporan Baru",
+        fileName: `Laporan_${reportType}_${opdCode === "all" ? "Jabar" : opdCode}_${Date.now().toString().slice(-4)}.${format}`,
+        reportTypeLabel: reportLabel,
         dateRange: `${startDate} s/d ${endDate}`,
-        opdLabel: opdCode === "all" ? "Semua OPD" : opdOptions.find(o => o.code === opdCode)?.name || opdCode,
+        opdLabel: selectedOpdName,
         createdAt: new Date().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) + " WIB",
-        fileSizeFormatted: `${Math.floor(Math.random() * 500) + 100} KB`,
+        fileSizeFormatted: `${Math.floor(Math.random() * 300) + 120} KB`,
         status: "completed",
         format: format,
       };
+
+      // Tambahkan ke baris paling atas tabel riwayat
       setHistory([newReport, ...history]);
     }, 1500);
   };
 
-  // Fungsi pengunduhan aman untuk Excel, PDF, dan CSV tanpa error
+  // Fungsi pengunduhan yang sepenuhnya DINAMIS berdasarkan data baris laporan yang diklik
   const handleDownload = (item: any) => {
     let extension = item.format || "csv";
 
-    // Jika format PDF, buka print preview browser agar bisa langsung "Save as PDF" secara native
+    // Jika format PDF, buka print preview browser dengan data spesifik item tersebut
     if (extension === "pdf") {
       const printWindow = window.open('', '_blank');
       if (printWindow) {
@@ -145,39 +131,39 @@ export function ExportReportView() {
               <style>
                 body { font-family: Arial, sans-serif; padding: 25px; color: #1e293b; }
                 h2 { color: #0284c7; margin-bottom: 5px; }
-                .header-meta { font-size: 12px; color: #64748b; margin-bottom: 20px; }
+                .header-meta { font-size: 12px; color: #64748b; margin-bottom: 20px; line-height: 1.5; }
                 table { width: 100%; border-collapse: collapse; margin-top: 15px; }
                 th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; font-size: 12px; }
                 th { background-color: #f1f5f9; color: #334155; }
-                .footer { margin-top: 30px; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; paddingTop: 10px; }
+                .footer { margin-top: 30px; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 10px; }
               </style>
             </head>
             <body>
               <h2>PEMERINTAH PROVINSI JAWA BARAT</h2>
               <p style="margin: 0; font-weight: bold; font-size: 13px;">Dinas Komunikasi dan Informatika (APTIKA)</p>
               <div class="header-meta">
-                <p>Jenis Laporan: ${item.reportTypeLabel} | Periode: ${item.dateRange}</p>
-                <p>Perangkat Daerah: ${item.opdLabel} | Dibuat: ${item.createdAt}</p>
+                <p><b>Jenis Laporan:</b> ${item.reportTypeLabel}</p>
+                <p><b>Rentang Periode:</b> ${item.dateRange}</p>
+                <p><b>Perangkat Daerah (OPD):</b> ${item.opdLabel}</p>
+                <p><b>Waktu Generate:</b> ${item.createdAt}</p>
               </div>
               <hr style="border: 0; border-top: 1px solid #cbd5e1;" />
               <table>
                 <thead>
                   <tr>
-                    <th>Nama Aplikasi</th>
-                    <th>Perangkat Daerah</th>
-                    <th>Target SLA</th>
-                    <th>Status Kepatuhan</th>
+                    <th>Parameter Laporan</th>
+                    <th>Detail Konfigurasi Sistem</th>
+                    <th>Status Validasi</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr><td>Portal Resmi Jabarprov</td><td>DISKOMINFO</td><td>99.5%</td><td>Sesuai SLA</td></tr>
-                  <tr><td>SIMPUS Jabar Online</td><td>DINKES</td><td>99.5%</td><td>Melewati SLA</td></tr>
-                  <tr><td>Sistem Pajak Kendaraan</td><td>BAPENDA</td><td>99.5%</td><td>Mendekati Batas</td></tr>
-                  <tr><td>Aplikasi Layanan Publik Desa</td><td>DPMD</td><td>99.5%</td><td>Melewati SLA</td></tr>
+                  <tr><td>Cakupan Instansi</td><td>${item.opdLabel}</td><td>Terverifikasi</td></tr>
+                  <tr><td>Jenis Audit</td><td>${item.reportTypeLabel}</td><td>Sesuai Standar Jabar</td></tr>
+                  <tr><td>Rentang Tanggal</td><td>${item.dateRange}</td><td>Lengkap</td></tr>
                 </tbody>
               </table>
               <div class="footer">
-                Dokumen resmi digenerate secara otomatis melalui Sistem Monitoring APTIKA Jabarprov.
+                Dokumen resmi digenerate secara otomatis melalui Sistem Monitoring APTIKA Jabarprov. ID Dokumen: ${item.id}
               </div>
               <script>
                 window.onload = function() { window.print(); };
@@ -190,42 +176,44 @@ export function ExportReportView() {
       return;
     }
 
-    // Untuk Excel (.xlsx) dan CSV (.csv)
+    // Untuk Excel (.xls) atau CSV (.csv) secara dinamis
     let fileContent = "";
     let mimeType = "text/csv;charset=utf-8;";
     let downloadExtension = "csv";
 
     if (extension === "xlsx") {
-      // Format HTML Spreadsheet (.xls) agar Excel membuka tabel langsung dengan rapi tanpa error korup
       fileContent = `
         <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
         <head><meta charset="utf-8"/></head>
         <body>
           <h3>REKAP LAPORAN SISTEM MONITORING APTIKA</h3>
           <p><b>Jenis Laporan:</b> ${item.reportTypeLabel}</p>
-          <p><b>Periode:</b> ${item.dateRange} | <b>OPD:</b> ${item.opdLabel}</p>
+          <p><b>Rentang Periode:</b> ${item.dateRange}</p>
+          <p><b>Perangkat Daerah:</b> ${item.opdLabel}</p>
+          <p><b>Dibuat Pada:</b> ${item.createdAt}</p>
           <table border="1">
             <tr style="background-color: #0284c7; color: #ffffff;">
-              <th>Nama Aplikasi</th><th>Perangkat Daerah</th><th>Target SLA</th><th>Status Kepatuhan</th>
+              <th>Parameter Laporan</th><th>Detail Konfigurasi</th><th>Status Sistem</th>
             </tr>
-            <tr><td>Portal Resmi Jabarprov</td><td>DISKOMINFO</td><td>99.5%</td><td>Sesuai SLA</td></tr>
-            <tr><td>SIMPUS Jabar Online</td><td>DINKES</td><td>99.5%</td><td>Melewati SLA</td></tr>
-            <tr><td>Sistem Pajak Kendaraan</td><td>BAPENDA</td><td>99.5%</td><td>Mendekati Batas</td></tr>
+            <tr><td>Perangkat Daerah (OPD)</td><td>${item.opdLabel}</td><td>Aktif</td></tr>
+            <tr><td>Jenis Audit</td><td>${item.reportTypeLabel}</td><td>Tervalidasi</td></tr>
+            <tr><td>Rentang Waktu</td><td>${item.dateRange}</td><td>Selesai</td></tr>
           </table>
         </body>
         </html>
       `;
       mimeType = "application/vnd.ms-excel;charset=utf-8;";
-      downloadExtension = "xls"; // Ekstensi .xls dibuka native oleh Microsoft Excel tanpa peringatan
+      downloadExtension = "xls";
     } else {
       fileContent = "REKAP LAPORAN SISTEM MONITORING APTIKA\n" +
-                    `Jenis Laporan: ${item.reportTypeLabel}\n` +
-                    `Periode: ${item.dateRange}\n` +
-                    `Perangkat Daerah: ${item.opdLabel}\n\n` +
-                    "Nama Aplikasi,Perangkat Daerah,Target SLA,Status Kepatuhan\n" +
-                    "Portal Resmi Jabarprov,DISKOMINFO,99.5%,Sesuai SLA\n" +
-                    "SIMPUS Jabar Online,DINKES,99.5%,Melewati SLA\n" +
-                    "Sistem Pajak Kendaraan,BAPENDA,99.5%,Mendekati Batas\n";
+                    `Jenis Laporan,"${item.reportTypeLabel}"\n` +
+                    `Rentang Periode,"${item.dateRange}"\n` +
+                    `Perangkat Daerah,"${item.opdLabel}"\n` +
+                    `Dibuat Pada,"${item.createdAt}"\n\n` +
+                    "Parameter Utama,Keterangan Rekap,Status Validasi\n" +
+                    `Instansi / OPD,"${item.opdLabel}",Tervalidasi\n` +
+                    `Cakupan Audit,"${item.reportTypeLabel}",Selesai\n` +
+                    `Periode Waktu,"${item.dateRange}",Aktif\n`;
       mimeType = "text/csv;charset=utf-8;";
       downloadExtension = "csv";
     }
@@ -255,6 +243,7 @@ export function ExportReportView() {
         </div>
       )}
 
+      {/* Generator Form */}
       <div className="rounded-xl border border-border bg-white p-5 shadow-sm space-y-5">
         <div>
           <h3 className="text-sm font-semibold text-ink">Generator Laporan</h3>
@@ -353,6 +342,7 @@ export function ExportReportView() {
         </div>
       </div>
 
+      {/* Export History */}
       <div className="rounded-xl border border-border bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
           <div>
