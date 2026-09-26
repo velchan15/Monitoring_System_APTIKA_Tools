@@ -6,7 +6,8 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 const SCREENSHOTS_ROOT = path.join(__dirname, "..", "..", "public", "screenshots");
-const INTERVAL_MS = 60 * 1000;
+// UBAH: Interval diubah menjadi 12 jam (12 jam x 60 menit x 60 detik x 1000 ms)
+const INTERVAL_MS = 12 * 60 * 60 * 1000;
 const CONCURRENCY = 5;
 const NAV_TIMEOUT_MS = 15000;
 const CHROME_EXECUTABLE_PATH = process.env.CHROME_EXECUTABLE_PATH || undefined;

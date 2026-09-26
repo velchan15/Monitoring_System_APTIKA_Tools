@@ -160,6 +160,23 @@ async function runUptimeCheck() {
     await runInChunks(apps, 20, (app) => checkOneApp(app, monitoringNodeId));
 
     console.log("✅ Pemeriksaan uptime selesai.");
+
+    // --- START PEMBERSIHAN OTOMATIS 12 JAM ---
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+    try {
+      const deletedLogs = await prisma.monitoringLog.deleteMany({
+        where: {
+          checkedAt: {
+            lt: twelveHoursAgo,
+          },
+        },
+      });
+      console.log(`🧹 Membersihkan ${deletedLogs.count} log lama.`);
+    } catch (cleanupErr) {
+      console.error("Gagal membersihkan log lama:", cleanupErr.message);
+    }
+    // --- END PEMBERSIHAN OTOMATIS 12 JAM ---
+
   } catch (err) {
     console.error("❌ Gagal menjalankan worker uptime:", err.message);
   }
