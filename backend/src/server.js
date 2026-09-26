@@ -10,6 +10,7 @@ const { closeQueues } = require("./queues/queues");
 // 1. Impor semua background worker (Uptime, Monitoring, dan SSL)
 const { startUptimeWorker } = require("../workers/uptimeWorker");
 const { startMonitoringWorker, stopMonitoringWorker } = require("../workers/monitoringWorker");
+const { startRetentionWorker } = require("../workers/retentionWorker");
 const { startSslWorker } = require("../workers/sslWorker"); // Pastikan path foldernya sesuai
 
 const port = Number.parseInt(process.env.PORT || "3001", 10);
@@ -50,7 +51,8 @@ const server = app.listen(port, () => {
   // 2. Jalankan semua background worker setelah server berhasil menyala
   startUptimeWorker();
   startMonitoringWorker();
-  startSslWorker(); // <-- Ditambahkan agar worker SSL otomatis berjalan!
+  startRetentionWorker();
+  startSslWorker();
 });
 
 async function shutdown(signal) {
