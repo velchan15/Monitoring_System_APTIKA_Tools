@@ -45,7 +45,7 @@ async function checkSemuaAplikasi() {
     }
 
     // ==========================================
-    // LOGIKA PENGIRIMAN PESAN REKAP / GABUNGAN
+    // LOGIKA PENGIRIMAN PESAN REKAP & SIMPAN KE DATABASE
     // ==========================================
     if (aplikasiBaruDown.length > 0) {
       // Mendapatkan waktu dengan format jam.menit.detik
@@ -60,13 +60,47 @@ async function checkSemuaAplikasi() {
         pesanWA += `${index + 1}. ${app.name} (URL: ${app.url})\n`;
       });
 
-      // Kirim satu pesan WA yang berisi rekap semua aplikasi down
-      await axios.post('http://localhost:3005/api/send-wa', {
-        nomor: '6282315517254', 
-        pesan: pesanWA
-      });
-      
-      console.log(`[WA] 1 Pesan rekap berisi ${aplikasiBaruDown.length} aplikasi down berhasil dikirim!`);
+      // 1. Kirim pesan rekap ke WhatsApp
+      try {
+        await axios.post('http://localhost:3005/api/send-wa', {
+          nomor: '6282315517254', 
+          pesan: pesanWA
+        });
+        console.log(`[WA] 1 Pesan rekap berisi ${aplikasiBaruDown.length} aplikasi down berhasil dikirim!`);
+      } catch (error) {
+        console.error(`[WA] Gagal mengirim WhatsApp:`, error.message);
+      }
+
+      // 2. Simpan riwayatnya ke Database agar muncul di Dashboard Web
+      for (const app of aplikasiBaruDown) {
+        try {
+          // Buat record insiden baru
+          const insidenBaru = await prisma.incident.create({
+            data: {
+              applicationId: app.id,
+              status: 'active',
+              severity: 'HIGH',
+              startedAt: new Date().toISOString()
+            }
+          });
+
+          // Buat record notifikasi yang terhubung ke insiden tersebut
+          await prisma.notification.create({
+            data: {
+              incidentId: insidenBaru.id,
+              channel: 'WHATSAPP',
+              recipient: '6282315517254',
+              message: `Peringatan: Aplikasi ${app.name} terdeteksi DOWN.`,
+              status: 'SENT',
+              sentAt: new Date(),
+              isRead: false
+            }
+          });
+          console.log(`[DB] Notifikasi untuk ${app.name} berhasil disimpan ke database!`);
+        } catch (dbError) {
+          console.error(`[DB] Gagal menyimpan notifikasi ke database:`, dbError.message);
+        }
+      }
     }
 
     console.log("Pengecekan selesai! Menunggu jadwal berikutnya...");
