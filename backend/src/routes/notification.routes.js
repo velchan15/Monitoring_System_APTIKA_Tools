@@ -9,7 +9,7 @@ router.get('/', async (req, res) => {
     const notifs = await prisma.notification.findMany({
       include: { incident: true }, // Menarik relasi tabel Incident
       orderBy: { createdAt: 'desc' },
-      take: 20 // Batasi 20 notifikasi terbaru agar tidak berat
+      take: 200 // Batasi 200 notifikasi terbaru agar tidak berat
     });
 
     // Format ulang agar sesuai dengan yang diharapkan Frontend
