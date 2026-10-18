@@ -17,6 +17,11 @@ const { startUptimeWorker } = require("../workers/uptimeWorker");
 // Folder public/screenshots ada di root project frontend (Next.js)
 const SCREENSHOTS_ROOT = path.join(__dirname, "..", "..", "public", "screenshots");
 
+// ==========================================
+// VARIABEL GLOBAL BROWSER (SINGLETON)
+// ==========================================
+let globalBrowser = null;
+
 function sanitizeSegment(value, fallback) {
   if (!value) return fallback;
   const cleaned = String(value)
@@ -70,10 +75,17 @@ function createApp({ readiness = async () => ({ database: "error", redis: "error
     const targetDir = path.join(SCREENSHOTS_ROOT, opdFolder);
     const targetPath = path.join(targetDir, fileName);
 
-    let browser = null;
+    let context = null;
+
     try {
-      browser = await chromium.launch({ headless: true });
-      const context = await browser.newContext({
+      // Lazy Initialization: Buka browser hanya jika belum ada yang menyala
+      if (!globalBrowser) {
+        console.log("🌍 Membuka instansi Playwright Chromium untuk pertama kalinya...");
+        globalBrowser = await chromium.launch({ headless: true });
+      }
+
+      // Jangan buat browser baru, cukup buat 'context' (tab) baru yang jauh lebih hemat RAM
+      context = await globalBrowser.newContext({
         viewport: { width: 1280, height: 720 },
         ignoreHTTPSErrors: true,
       });
@@ -90,14 +102,17 @@ function createApp({ readiness = async () => ({ database: "error", redis: "error
         console.warn(`⚠️ Navigasi ke ${targetUrl} gagal/timeout — screenshot mungkin blank.`);
       }
 
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(2000); // Tunggu animasi UI selesai
 
       const pngBuffer = await page.screenshot({ fullPage: false });
-      await browser.close();
-      browser = null;
+      
+      // Sangat Penting: Tutup tab/context-nya agar RAM kembali lega (TIDAK menutup global browser)
+      await context.close();
 
+      // Kompresi ke format WebP via Sharp
       const webpBuffer = await sharp(pngBuffer).webp({ quality: 80 }).toBuffer();
 
+      // Simpan ke direktori Frontend
       fs.mkdirSync(targetDir, { recursive: true });
       fs.writeFileSync(targetPath, webpBuffer);
 
@@ -105,8 +120,11 @@ function createApp({ readiness = async () => ({ database: "error", redis: "error
       res.send(webpBuffer);
     } catch (error) {
       console.error("Gagal ambil screenshot:", error);
-      if (browser) await browser.close();
-      res.status(500).send("Gagal");
+      
+      // Pastikan context/tab tetap ditutup meskipun terjadi error
+      if (context) await context.close();
+      
+      res.status(500).send("Gagal memproses screenshot.");
     }
   });
 
@@ -141,4 +159,5 @@ function createApp({ readiness = async () => ({ database: "error", redis: "error
   return app;
 }
 
-module.exports = { createApp };
+// Opsional tapi disarankan: Ekspor juga globalBrowser jika nanti butuh dimatikan dari server.js
+module.exports = { createApp, getGlobalBrowser: () => globalBrowser };

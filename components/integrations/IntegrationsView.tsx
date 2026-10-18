@@ -42,8 +42,36 @@ function IntegrationCard({ integration, onSelect, onSyncSuccess }: IntegrationCa
   const handleTest = async () => {
     setIsTesting(true);
     setTestResult(null);
-    const result = await testIntegrationConnection(integration.id);
-    setTestResult(result);
+
+    // LOGIKA KHUSUS UNTUK WHATSAPP BOT (ID: "wa-bot")
+    if (integration.id === "wa-bot" || integration.name.includes("WhatsApp")) {
+      try {
+        const startTime = Date.now();
+        const res = await fetch("http://localhost:3005/api/send-wa", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nomor: "6282315517254", // Ganti dengan nomor WhatsApp ujicoba kamu
+            pesan: "🤖 *TEST KONEKSI BERHASIL* \nIntegrasi WhatsApp Bot dengan Dashboard APTIKA sudah terhubung penuh!"
+          })
+        });
+
+        const latency = Date.now() - startTime;
+
+        if (res.ok) {
+          setTestResult({ success: true, latencyMs: latency, message: `Pesan sukses terkirim (${latency}ms)` });
+        } else {
+          setTestResult({ success: false, latencyMs: latency, message: "Gagal: Respons API tidak OK." });
+        }
+      } catch (error) {
+        setTestResult({ success: false, latencyMs: 0, message: "Gagal: Server Bot (Port 3005) mati." });
+      }
+    } else {
+      // Logika bawaan untuk integrasi lain (Email, Webhook, Katalog)
+      const result = await testIntegrationConnection(integration.id);
+      setTestResult(result);
+    }
+
     setIsTesting(false);
     setTimeout(() => setTestResult(null), 5000);
   };
@@ -62,7 +90,6 @@ function IntegrationCard({ integration, onSelect, onSyncSuccess }: IntegrationCa
 
   return (
     <div className="rounded-xl border border-border bg-white p-5 shadow-sm space-y-4">
-      {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 mb-0.5">
@@ -86,14 +113,12 @@ function IntegrationCard({ integration, onSelect, onSyncSuccess }: IntegrationCa
 
       <p className="text-xs text-ink/65 leading-relaxed">{integration.description}</p>
 
-      {/* Last sync */}
       {integration.lastSyncAt && (
         <div className="text-[10px] text-ink/40 font-mono">
           Terakhir sinkron: {integration.lastSyncAt}
         </div>
       )}
 
-      {/* Result feedback */}
       {testResult && (
         <div className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold", testResult.success ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700")}>
           {testResult.success ? <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" /> : <XCircle className="h-3.5 w-3.5 flex-shrink-0" />}
@@ -107,7 +132,6 @@ function IntegrationCard({ integration, onSelect, onSyncSuccess }: IntegrationCa
         </div>
       )}
 
-      {/* Actions */}
       <div className="flex items-center gap-2 pt-1 border-t border-border">
         <button
           type="button"
@@ -223,7 +247,6 @@ export function IntegrationsView() {
 
   return (
     <div className="space-y-4">
-      {/* Summary */}
       <div className="flex flex-wrap gap-3 text-xs">
         <div className="flex items-center gap-2 rounded-lg border border-border bg-white px-4 py-2.5 shadow-sm">
           <CheckCircle2 className="h-4 w-4 text-status-online" />
@@ -239,7 +262,6 @@ export function IntegrationsView() {
         </div>
       </div>
 
-      {/* Cards Grid */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {integrations.map((integration) => (
           <IntegrationCard

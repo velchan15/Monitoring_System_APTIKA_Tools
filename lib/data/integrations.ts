@@ -17,18 +17,19 @@ export const mockIntegrations: IntegrationItem[] = [
     ],
   },
   {
-    id: "int-02",
-    name: "Telegram Bot Command Center",
+    // ID diubah menjadi wa-bot agar sinkron dengan logika tombol di IntegrationsView.tsx
+    id: "wa-bot", 
+    name: "WhatsApp Bot Command Center",
     category: "Messaging",
-    description: "Bot Telegram untuk notifikasi insiden real-time ke kanal @JabarCC_Alerts dan pesan langsung ke PIC teknis OPD.",
+    description: "Bot WhatsApp (Puppeteer) untuk notifikasi insiden real-time ke nomor PIC teknis OPD.",
     status: "connected",
-    lastSyncAt: "29 Agu 2026, 07:22 WIB",
-    endpointOrTarget: "@JabarCC_Alerts",
+    lastSyncAt: "Baru saja",
+    endpointOrTarget: "http://localhost:3005/api/send-wa",
     syncIntervalMinutes: 0,
     configFields: [
-      { key: "bot_token", label: "Bot Token", value: "********************", isSecret: true },
-      { key: "chat_id", label: "Channel Chat ID", value: "-1001234567890", isSecret: false },
-      { key: "parse_mode", label: "Parse Mode", value: "HTML", isSecret: false },
+      { key: "wa_port", label: "Local Bot Port", value: "3005", isSecret: false },
+      { key: "default_number", label: "Nomor Target Uji Coba", value: "6282315517254", isSecret: false },
+      { key: "session_status", label: "Status Sesi", value: "AUTHENTICATED", isSecret: false },
     ],
   },
   {
@@ -84,15 +85,45 @@ export async function testIntegrationConnection(id: string): Promise<{
   latencyMs: number;
   message: string;
 }> {
-  await new Promise((r) => setTimeout(r, 1200));
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
   const integration = mockIntegrations.find((i) => i.id === id);
+  
   if (!integration) return { success: false, latencyMs: 0, message: "Integrasi tidak ditemukan." };
+  if (integration.status === "disconnected") return { success: false, latencyMs: 0, message: "Koneksi dimatikan oleh sistem." };
 
-  if (integration.status === "disconnected") {
-    return { success: false, latencyMs: 0, message: "Koneksi gagal. Endpoint tidak dapat dijangkau." };
+  try {
+    // A. Logika Eksekusi SMTP Email (int-03)
+    if (id === "int-03") {
+      const res = await fetch(`${API_URL}/api/integrations/test-smtp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          host: integration.configFields?.find(f => f.key === "smtp_host")?.value,
+          port: integration.configFields?.find(f => f.key === "smtp_port")?.value,
+          user: integration.configFields?.find(f => f.key === "smtp_user")?.value,
+          pass: integration.configFields?.find(f => f.key === "smtp_password")?.value,
+        })
+      });
+      return await res.json();
+    }
+
+    // B. Logika Eksekusi Webhook (int-04)
+    if (id === "int-04") {
+      const res = await fetch(`${API_URL}/api/integrations/test-webhook`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: integration.endpointOrTarget })
+      });
+      return await res.json();
+    }
+
+    // C. Logika Eksekusi Katalog API (int-01) - Sementara masih simulasi karena biasanya butuh API Key spesifik
+    const latency = Math.floor(Math.random() * 120) + 40;
+    return { success: true, latencyMs: latency, message: `Koneksi API Katalog berhasil (${latency}ms)` };
+
+  } catch (error) {
+    return { success: false, latencyMs: 0, message: "Gagal terhubung ke Backend (Port 3001 mati)." };
   }
-  const latency = Math.floor(Math.random() * 120) + 40;
-  return { success: true, latencyMs: latency, message: `Koneksi berhasil (${latency}ms)` };
 }
 
 /**
